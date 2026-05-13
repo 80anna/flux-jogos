@@ -40,5 +40,11 @@
         "autor": "Zé",
         "arquivo": "valorant.html",
         "imagem": "jogos/assets/valorant.png"
+    },
+    {
+        "nome": "BoomGhost",
+        "autor": "Anna",
+        "arquivo": "boom.html",
+        "imagem": "jogos/assets/boomghost.png"
     }
 ]
