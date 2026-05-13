@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLT Clicker - Edição Carreira Longa</title>
+    <style>
+        :root {
+            --primary-bg: #121212;
+            --panel-bg: #1e1e1e;
+            --card-bg: #2a2a2a;
+            --text-main: #e0e0e0;
+            --clt-blue: #1c4b82;
+            --clt-gold: #d4af37;
+            --money-green: #4caf50;
+            --accent-yellow: #ffeb3b;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .left-panel {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-right: 3px solid #333;
+            background: radial-gradient(circle at center, #252525 0%, #121212 100%);
+            position: relative;
+        }
+
+        .stats-container {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid #444;
+            min-width: 300px;
+        }
+
+        #money {
+            font-size: 3.5em;
+            font-weight: 900;
+            color: var(--money-green);
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        }
+
+        #moneyPerSec {
+            font-size: 1.3em;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        #clickPowerText {
+            font-size: 1em;
+            color: var(--accent-yellow);
+            margin-top: 5px;
+            font-weight: bold;
+        }
+
+        .clt-clickable {
+            cursor: pointer;
+            transition: transform 0.05s active;
+            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.6));
+        }
+
+        .clt-clickable:hover {
+            transform: scale(1.02);
+        }
+
+        .clt-clickable:active {
+            transform: scale(0.95);
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--panel-bg);
+        }
+
+        .tabs {
+            display: flex;
+            background-color: #000;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+            border-bottom: 4px solid transparent;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tab.active {
+            background-color: var(--panel-bg);
+            border-bottom-color: var(--clt-gold);
+            color: var(--clt-gold);
+        }
+
+        .shop-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .item-card {
+            background-color: var(--card-bg);
+            margin-bottom: 12px;
+            padding: 15px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: 0.2s;
+            position: relative;
+        }
+
+        .item-card:hover {
+            background-color: #353535;
+        }
+
+        .item-card.affordable {
+            border-color: #388e3c;
+        }
+
+        .item-icon {
+            width: 50px;
+            height: 50px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+        }
+
+        .item-details { flex: 1; }
+        .item-details h3 { margin: 0; font-size: 1.1em; color: #fff; }
+        .item-details p { margin: 4px 0; font-size: 0.85em; color: #aaa; }
+        .item-price { font-weight: bold; color: var(--accent-yellow); font-size: 0.9em; }
+        .item-qty { font-size: 1.8em; font-weight: 900; color: rgba(255,255,255,0.1); }
+
+        .floating-text {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            pointer-events: none;
+            animation: floatMove 0.8s ease-out forwards;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 100;
+        }
+
+        @keyframes floatMove {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-100px); }
+        }
+
+        .hidden { display: none; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body>
+
+    <div class="left-panel">
+        <div class="stats-container">
+            <div id="money">R$ 0,00</div>
+            <div id="moneyPerSec">R$ 0,00 por segundo</div>
+            <div id="clickPowerText">R$ 1,00 por clique</div>
+            <div id="prestige-bonus" style="color: var(--clt-gold); font-size: 0.9em; margin-top: 10px; display: none;"></div>
+        </div>
+
+        <div class="clt-clickable" onclick="handleMainClick(event)">
+            <svg width="220" height="310" viewBox="0 0 200 280">
+                <rect width="200" height="280" rx="12" fill="#1c4b82" stroke="#0a1c32" stroke-width="3"/>
+                <rect x="10" y="10" width="180" height="260" rx="8" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                <circle cx="100" cy="85" r="35" fill="none" stroke="#d4af37" stroke-width="1.5"/>
+                <path d="M100 65 L108 82 L125 82 L112 93 L117 110 L100 100 L83 110 L88 93 L75 82 L92 82 Z" fill="#d4af37"/>
+                <text x="100" y="145" fill="#d4af37" font-family="serif" font-size="9" text-anchor="middle" font-weight="bold">REPÚBLICA FEDERATIVA DO BRASIL</text>
+                <text x="100" y="157" fill="#d4af37" font-family="serif" font-size="7" text-anchor="middle">MINISTÉRIO DO TRABALHO</text>
+                <rect x="25" y="190" width="150" height="65" rx="4" fill="#123259" stroke="#d4af37" stroke-width="1.5"/>
+                <text x="100" y="218" fill="#d4af37" font-family="sans-serif" font-size="14" text-anchor="middle" font-weight="900">CARTEIRA DE</text>
+                <text x="100" y="240" fill="#d4af37" font-family="sans-serif" font-size="14" text-anchor="middle" font-weight="900">TRABALHO</text>
+            </svg>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('workers')">Equipe</div>
+            <div class="tab" onclick="showTab('upgrades')">Carreira</div>
+            <div class="tab" onclick="showTab('prestige')">INSS</div>
+        </div>
+
+        <div id="workers-list" class="shop-container"></div>
+        <div id="upgrades-list" class="shop-container hidden"></div>
+        
+        <div id="prestige-tab" class="shop-container hidden" style="text-align: center; padding: 40px 20px;">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="1.5">
+                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                <path d="M12 6v6l4 2"/>
+            </svg>
+            <h2 style="color: var(--clt-gold);">Aposentadoria Antecipada</h2>
+            <p>Ao se aposentar agora, você reseta seu progresso mas mantém sua experiência como <b>Bônus de Contribuição</b>.</p>
+            <div style="background: #111; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <p>Anos de Contribuição: <b id="p-current">0</b></p>
+                <p>Bônus de Multiplicador: <b id="p-bonus" style="color: #4caf50;">+0%</b></p>
+                <hr style="border: 0; border-top: 1px solid #333;">
+                <p>Anos ao aposentar agora: <b id="p-pending" style="color: var(--accent-yellow);">+0</b></p>
+            </div>
+            <button onclick="doPrestige()" id="prestige-btn" style="background: #d4af37; border: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">DAR BAIXA NA CARTEIRA (RESET)</button>
+        </div>
+    </div>
+
+    <script>
+        const ICONS = {
+            coffee: `<svg viewBox="0 0 24 24" fill="#6F4E37"><path d="M2 21h18v-2H2M20 8h-2V5h2m0-2H4v13c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2z"/></svg>`,
+            paper: `<svg viewBox="0 0 24 24" fill="#90A4AE"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`,
+            calc: `<svg viewBox="0 0 24 24" fill="#FF7043"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14h-4v-1h4v1zm0-3h-4v-1h4v1zm0-3h-4v-1h4v1zm3 6h-2v-1h2v1zm0-3h-2v-1h2v1zm0-3h-2v-1h2v1zm-6-3H5v-1h2v1zm3 0h-2v-1h2v1zm3 0h-2v-1h2v1zm3 0h-2v-1h2v1z"/></svg>`,
+            code: `<svg viewBox="0 0 24 24" fill="#4DB6AC"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>`,
+            briefcase: `<svg viewBox="0 0 24 24" fill="#A1887F"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg>`,
+            chart: `<svg viewBox="0 0 24 24" fill="#BA68C8"><path d="M5 9.2L10.5 14.7L13.5 11.7L19 17.2V15H21V21H15V19H17.2L13.5 15.3L10.5 18.3L3.5 11.3L5 9.8z"/></svg>`,
+            building: `<svg viewBox="0 0 24 24" fill="#7986CB"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>`,
+            pen: `<svg viewBox="0 0 24 24" fill="#1976D2"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`,
+            food: `<svg viewBox="0 0 24 24" fill="#81C784"><path d="M18 4H6C4.9 4 4 4.9 4 6v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12zm-2-7h-8v2h8v-2z"/></svg>`,
+            wifi: `<svg viewBox="0 0 24 24" fill="#64B5F6"><path d="M1 9l2 2c5-5 13-5 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>`,
+            star: `<svg viewBox="0 0 24 24" fill="#FFB300"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`,
+            scale: `<svg viewBox="0 0 24 24" fill="#E57373"><path d="M12 2L2 7l10 5 10-5-10-5zm0 10l-10-5v10l10 5 10-5V7l-10 5z"/></svg>`
+        };
+
+        // Adicionado 'basePrice' para podermos resetar os preços no Prestige
+        let game = {
+            money: 0,
+            totalEarnings: 0,
+            prestige: 0,
+            workers: [
+                { id: 'w1', name: 'Estagiário', basePrice: 15, price: 15, mps: 0.5, qty: 0, icon: 'coffee', desc: 'Ganha pouco, mas faz café.' },
+                { id: 'w2', name: 'Jovem Aprendiz', basePrice: 100, price: 100, mps: 3, qty: 0, icon: 'paper', desc: 'Carrega pastas e tira xerox.' },
+                { id: 'w3', name: 'Auxiliar ADM', basePrice: 1100, price: 1100, mps: 12, qty: 0, icon: 'calc', desc: 'Domina as planilhas do setor.' },
+                { id: 'w4', name: 'Dev Júnior', basePrice: 12000, price: 12000, mps: 45, qty: 0, icon: 'code', desc: 'Conserta bugs criando outros.' },
+                { id: 'w5', name: 'Gerente de Projetos', basePrice: 130000, price: 130000, mps: 180, qty: 0, icon: 'briefcase', desc: 'Marca reuniões infinitas.' },
+                { id: 'w6', name: 'Analista Sênior', basePrice: 1400000, price: 1400000, mps: 1200, qty: 0, icon: 'chart', desc: 'Decifra gráficos complexos.' },
+                { id: 'w7', name: 'Diretor Geral', basePrice: 20000000, price: 20000000, mps: 10000, qty: 0, icon: 'building', desc: 'O dono do andar.' },
+                { id: 'w8', name: 'Sócio Investidor', basePrice: 350000000, price: 350000000, mps: 85000, qty: 0, icon: 'star', desc: 'Ganha dinheiro enquanto dorme.' }
+            ],
+            // Expandido de 4 para 12 Upgrades com escala brutal
+            upgrades: [
+                { id: 'u1', name: 'Caneta Bic Azul', basePrice: 50, price: 50, power: 1, bought: 0, icon: 'pen', desc: '+1 por clique' },
+                { id: 'u2', name: 'Marmita de Vidro', basePrice: 250, price: 250, power: 3, bought: 0, icon: 'food', desc: '+3 por clique' },
+                { id: 'u3', name: 'Garrafa Termica Pessoal', basePrice: 1000, price: 1000, power: 10, bought: 0, icon: 'coffee', desc: '+10 por clique' },
+                { id: 'u4', name: 'Vale Refeição Turbinado', basePrice: 5000, price: 5000, power: 45, bought: 0, icon: 'food', desc: '+45 por clique' },
+                { id: 'u5', name: 'Curso de Excel Avançado', basePrice: 25000, price: 25000, power: 150, bought: 0, icon: 'calc', desc: '+150 por clique' },
+                { id: 'u6', name: 'Teclado Mecânico RGB', basePrice: 100000, price: 100000, power: 500, bought: 0, icon: 'code', desc: '+500 por clique' },
+                { id: 'u7', name: 'Amizade com o TI', basePrice: 450000, price: 450000, power: 2000, bought: 0, icon: 'wifi', desc: '+2.000 por clique' },
+                { id: 'u8', name: 'Cadeira Ergonômica', basePrice: 2000000, price: 2000000, power: 8000, bought: 0, icon: 'briefcase', desc: '+8.000 por clique' },
+                { id: 'u9', name: 'Wi-Fi da Diretoria', basePrice: 10000000, price: 10000000, power: 35000, bought: 0, icon: 'wifi', desc: '+35.000 por clique' },
+                { id: 'u10', name: 'Puxa-Saco do Chefe', basePrice: 65000000, price: 65000000, power: 150000, bought: 0, icon: 'star', desc: '+150.000 por clique' },
+                { id: 'u11', name: 'Saque do FGTS', basePrice: 400000000, price: 400000000, power: 800000, bought: 0, icon: 'paper', desc: '+800.000 por clique' },
+                { id: 'u12', name: 'Processo Trabalhista', basePrice: 2500000000, price: 2500000000, power: 5000000, bought: 0, icon: 'scale', desc: '+5.000.000 por clique' }
+            ]
+        };
+
+        function getMps() {
+            let total = 0;
+            game.workers.forEach(w => total += (w.mps * w.qty));
+            return total * (1 + (game.prestige * 0.10));
+        }
+
+        function getClickPower() {
+            let pwr = 1;
+            game.upgrades.forEach(u => pwr += (u.power * u.bought));
+            return pwr * (1 + (game.prestige * 0.10));
+        }
+
+        function format(val) {
+            return "R$ " + val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function handleMainClick(e) {
+            const pwr = getClickPower();
+            game.money += pwr;
+            game.totalEarnings += pwr;
+            
+            const text = document.createElement('div');
+            text.className = 'floating-text';
+            text.innerText = `+${pwr.toLocaleString('pt-BR')}`;
+            text.style.left = e.clientX + 'px';
+            text.style.top = e.clientY + 'px';
+            document.body.appendChild(text);
+            setTimeout(() => text.remove(), 800);
+            
+            updateUI();
+            updateShopColors();
+        }
+
+        function buyWorker(index) {
+            const w = game.workers[index];
+            if (game.money >= w.price) {
+                game.money -= w.price;
+                w.qty++;
+                w.price *= 1.15; // Aumento de custo a cada compra
+                renderStore();
+                updateUI();
+            }
+        }
+
+        function buyUpgrade(index) {
+            const u = game.upgrades[index];
+            if (game.money >= u.price) {
+                game.money -= u.price;
+                u.bought++;
+                u.price *= 2.5; // Upgrades ficam caros bem mais rápido
+                renderStore();
+                updateUI();
+            }
+        }
+
+        function showTab(tab) {
+            document.getElementById('workers-list').classList.add('hidden');
+            document.getElementById('upgrades-list').classList.add('hidden');
+            document.getElementById('prestige-tab').classList.add('hidden');
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+            if(tab === 'workers') document.getElementById('workers-list').classList.remove('hidden');
+            if(tab === 'upgrades') document.getElementById('upgrades-list').classList.remove('hidden');
+            if(tab === 'prestige') document.getElementById('prestige-tab').classList.remove('hidden');
+            
+            event.target.classList.add('active');
+        }
+
+        function renderStore() {
+            const wList = document.getElementById('workers-list');
+            wList.innerHTML = '';
+            game.workers.forEach((w, i) => {
+                wList.innerHTML += `
+                    <div class="item-card worker-card ${game.money >= w.price ? 'affordable' : ''}" onclick="buyWorker(${i})">
+                        <div class="item-icon">${ICONS[w.icon]}</div>
+                        <div class="item-details">
+                            <h3>${w.name}</h3>
+                            <p>${w.desc}</p>
+                            <span class="item-price">${format(w.price)} • +${w.mps.toLocaleString('pt-BR')}/s</span>
+                        </div>
+                        <div class="item-qty">${w.qty}</div>
+                    </div>
+                `;
+            });
+
+            const uList = document.getElementById('upgrades-list');
+            uList.innerHTML = '';
+            game.upgrades.forEach((u, i) => {
+                uList.innerHTML += `
+                    <div class="item-card upgrade-card ${game.money >= u.price ? 'affordable' : ''}" onclick="buyUpgrade(${i})">
+                        <div class="item-icon">${ICONS[u.icon]}</div>
+                        <div class="item-details">
+                            <h3>${u.name}</h3>
+                            <p>${u.desc}</p>
+                            <span class="item-price">${format(u.price)}</span>
+                        </div>
+                        <div class="item-qty">${u.bought}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function updateShopColors() {
+            // Atualiza apenas a cor verde dos cards sem recriar o HTML todo (evita piscar a tela)
+            const wCards = document.querySelectorAll('.worker-card');
+            game.workers.forEach((w, i) => {
+                if (wCards[i]) {
+                    if(game.money >= w.price) wCards[i].classList.add('affordable');
+                    else wCards[i].classList.remove('affordable');
+                }
+            });
+
+            const uCards = document.querySelectorAll('.upgrade-card');
+            game.upgrades.forEach((u, i) => {
+                if (uCards[i]) {
+                    if(game.money >= u.price) uCards[i].classList.add('affordable');
+                    else uCards[i].classList.remove('affordable');
+                }
+            });
+        }
+
+        function updateUI() {
+            document.getElementById('money').innerText = format(game.money);
+            document.getElementById('moneyPerSec').innerText = format(getMps()) + " por segundo";
+            document.getElementById('clickPowerText').innerText = format(getClickPower()) + " por clique";
+            
+            // Formula de Prestige mais justa
+            const pending = Math.max(0, Math.floor(Math.cbrt(game.totalEarnings / 50000)));
+            document.getElementById('p-current').innerText = game.prestige;
+            document.getElementById('p-bonus').innerText = `+${game.prestige * 10}%`;
+            document.getElementById('p-pending').innerText = `+${pending}`;
+            
+            const pBonusText = document.getElementById('prestige-bonus');
+            if(game.prestige > 0) {
+                pBonusText.style.display = 'block';
+                pBonusText.innerText = `Bônus de Carreira: +${game.prestige * 10}% de todos os ganhos`;
+            }
+        }
+
+        function doPrestige() {
+            const pending = Math.floor(Math.cbrt(game.totalEarnings / 50000));
+            if(pending < 1) {
+                alert("Você precisa acumular pelo menos R$ 50.000,00 na vida para gerar 1 ano de contribuição!");
+                return;
+            }
+            
+            if(confirm(`Deseja mesmo se aposentar? Você ganhará ${pending} Anos de Contribuição, mas perderá o dinheiro e tudo voltará ao nível zero!`)) {
+                game.prestige += pending;
+                game.money = 0;
+                game.totalEarnings = 0;
+                
+                // Reseta tudo de volta para o basePrice e quantidade zero
+                game.workers.forEach(w => { w.qty = 0; w.price = w.basePrice; });
+                game.upgrades.forEach(u => { u.bought = 0; u.price = u.basePrice; });
+                
+                save();
+                renderStore();
+                updateUI();
+            }
+        }
+
+        function save() {
+            localStorage.setItem('clt_save_v3', JSON.stringify(game));
+        }
+
+        function load() {
+            const data = localStorage.getItem('clt_save_v3');
+            if(data) {
+                const loaded = JSON.parse(data);
+                game.money = loaded.money || 0;
+                game.totalEarnings = loaded.totalEarnings || 0;
+                game.prestige = loaded.prestige || 0;
+                
+                if (loaded.workers) {
+                    loaded.workers.forEach((w, i) => { 
+                        if(game.workers[i]) { game.workers[i].qty = w.qty; game.workers[i].price = w.price; } 
+                    });
+                }
+                if (loaded.upgrades) {
+                    loaded.upgrades.forEach((u, i) => { 
+                        if(game.upgrades[i]) { game.upgrades[i].bought = u.bought; game.upgrades[i].price = u.price; } 
+                    });
+                }
+            }
+        }
+
+        // Gameloop
+        setInterval(() => {
+            const mps = getMps() / 10;
+            game.money += mps;
+            game.totalEarnings += mps;
+            updateUI();
+            updateShopColors();
+        }, 100);
+
+        setInterval(save, 10000);
+
+        // Init
+        load();
+        renderStore();
+        updateUI();
+
+    </script>
+</body>
+</html>
