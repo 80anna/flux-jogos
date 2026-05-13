@@ -46,5 +46,11 @@
         "autor": "Anna",
         "arquivo": "boom.html",
         "imagem": "jogos/assets/boomghost.png"
+    },
+    {
+        "nome": "EuroTruck",
+        "autor": "Zé",
+        "arquivo": "eurotruck.html",
+        "imagem": "jogos/assets/eurotruck.png"
     }
 ]
