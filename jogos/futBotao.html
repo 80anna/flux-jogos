@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futebol de Botão - Física Corrigida</title>
+    <style>
+        body {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; background: #1a1a1a; color: white; font-family: sans-serif;
+        }
+        .header { text-align: center; margin-bottom: 10px; }
+        .score { font-size: 2.5rem; font-weight: bold; }
+        .turn-indicator {
+            padding: 8px 20px; border-radius: 20px; font-weight: bold;
+            margin-top: 10px; transition: 0.3s; text-transform: uppercase;
+        }
+        canvas {
+            background: #2e7d32; border: 5px solid #fff; border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="score" id="scoreBoard">0 - 0</div>
+        <div id="turnDisplay" class="turn-indicator" style="background: #2196F3;">Vez: Jogador 1</div>
+    </div>
+
+    <canvas id="gameCanvas" width="900" height="550"></canvas>
+    
+    <div style="margin-top: 15px; color: #888;">Agora a bola é mais leve e ganha velocidade extra no impacto!</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreBoard = document.getElementById('scoreBoard');
+        const turnDisplay = document.getElementById('turnDisplay');
+
+        let isDragging = false;
+        let selectedButton = null;
+        let mousePos = { x: 0, y: 0 };
+        let score = { p1: 0, p2: 0 };
+        let currentPlayer = 1;
+        let moving = false;
+
+        // --- PARÂMETROS DE FÍSICA ---
+        const friction = 0.985;        
+        const wallBounciness = 0.6;
+        const ballSpeedBoost = 2.2;   // <--- MULTIPLICADOR EXCLUSIVO DA BOLA
+        // ------------------------------
+
+        const radiusPlayer = 22;
+        const radiusBall = 9;
+
+        // A propriedade "isBall" nos permite aplicar lógica diferente apenas a ela
+        let ball = { x: 450, y: 275, vx: 0, vy: 0, radius: radiusBall, color: '#fff', isBall: true };
+        let team1 = [];
+        let team2 = [];
+
+        function initTeams() {
+            const startY = [100, 200, 275, 350, 450];
+            team1 = startY.map(y => ({ x: 250, y: y, vx: 0, vy: 0, radius: radiusPlayer, color: '#2196F3' }));
+            team2 = startY.map(y => ({ x: 650, y: y, vx: 0, vy: 0, radius: radiusPlayer, color: '#F44336' }));
+        }
+
+        function drawField() {
+            ctx.strokeStyle = "rgba(255,255,255,0.5)";
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(450, 0); ctx.lineTo(450, 550); ctx.stroke();
+            ctx.beginPath(); ctx.arc(450, 275, 80, 0, Math.PI*2); ctx.stroke();
+            ctx.strokeRect(0, 200, 40, 150);
+            ctx.strokeRect(860, 200, 40, 150);
+        }
+
+        function drawCircle(obj, isHovered = false) {
+            ctx.save();
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = "black";
+            ctx.fillStyle = obj.color;
+            ctx.beginPath();
+            ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2);
+            ctx.fill();
+            if (isHovered) {
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function resolveCollision(a, b) {
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < a.radius + b.radius) {
+                let angle = Math.atan2(dy, dx);
+                let cos = Math.cos(angle);
+                let sin = Math.sin(angle);
+
+                // Velocidade escalar nos eixos de colisão
+                let va = a.vx * cos + a.vy * sin;
+                let vb = b.vx * cos + b.vy * sin;
+
+                // Troca de velocidades (Física Elástica)
+                let newVa = vb;
+                let newVb = va;
+
+                // --- O SEGREDO ESTÁ AQUI ---
+                // Se o objeto 'b' for a bola, ela recebe um impulso extra
+                if (b.isBall) newVb *= ballSpeedBoost;
+                // Se o objeto 'a' for a bola, ela também reage mais
+                if (a.isBall) newVa *= ballSpeedBoost;
+
+                a.vx += (newVa - va) * cos;
+                a.vy += (newVa - va) * sin;
+                b.vx += (newVb - vb) * cos;
+                b.vy += (newVb - vb) * sin;
+
+                // Reposicionamento para evitar sobreposição
+                let overlap = (a.radius + b.radius) - dist;
+                a.x -= (overlap / 2) * cos;
+                a.y -= (overlap / 2) * sin;
+                b.x += (overlap / 2) * cos;
+                b.y += (overlap / 2) * sin;
+            }
+        }
+
+        function update() {
+            let all = [ball, ...team1, ...team2];
+            let isMovingNow = false;
+
+            all.forEach(obj => {
+                obj.x += obj.vx;
+                obj.y += obj.vy;
+                obj.vx *= friction;
+                obj.vy *= friction;
+
+                if (Math.abs(obj.vx) < 0.1) obj.vx = 0;
+                if (Math.abs(obj.vy) < 0.1) obj.vy = 0;
+                if (obj.vx !== 0 || obj.vy !== 0) isMovingNow = true;
+
+                // Colisão Bordas
+                if (obj.x - obj.radius < 0 || obj.x + obj.radius > 900) {
+                    if (obj.isBall && obj.y > 200 && obj.y < 350) {
+                        goal(obj.x < 450 ? 2 : 1);
+                    } else {
+                        obj.vx *= -wallBounciness;
+                        obj.x = obj.x < obj.radius ? obj.radius : 900 - obj.radius;
+                    }
+                }
+                if (obj.y - obj.radius < 0 || obj.y + obj.radius > 550) {
+                    obj.vy *= -wallBounciness;
+                    obj.y = obj.y < obj.radius ? obj.radius : 550 - obj.radius;
+                }
+            });
+
+            for (let i = 0; i < all.length; i++) {
+                for (let j = i + 1; j < all.length; j++) {
+                    resolveCollision(all[i], all[j]);
+                }
+            }
+
+            if (moving && !isMovingNow) {
+                moving = false;
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+                turnDisplay.innerText = `Vez: Jogador ${currentPlayer}`;
+                turnDisplay.style.background = currentPlayer === 1 ? '#2196F3' : '#F44336';
+            }
+        }
+
+        function goal(player) {
+            score[player === 1 ? 'p1' : 'p2']++;
+            scoreBoard.innerText = `${score.p1} - ${score.p2}`;
+            ball.x = 450; ball.y = 275; ball.vx = 0; ball.vy = 0;
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawField();
+            
+            let currentTeam = currentPlayer === 1 ? team1 : team2;
+            let hoveredBtn = null;
+
+            if (!moving) {
+                currentTeam.forEach(btn => {
+                    let d = Math.sqrt((mousePos.x - btn.x)**2 + (mousePos.y - btn.y)**2);
+                    if (d < btn.radius) hoveredBtn = btn;
+                });
+            }
+
+            [ball, ...team1, ...team2].forEach(obj => {
+                drawCircle(obj, obj === hoveredBtn || obj === selectedButton);
+            });
+
+            if (isDragging && selectedButton) {
+                ctx.beginPath(); ctx.setLineDash([5, 5]);
+                ctx.moveTo(selectedButton.x, selectedButton.y);
+                ctx.lineTo(selectedButton.x + (selectedButton.x - mousePos.x), selectedButton.y + (selectedButton.y - mousePos.y));
+                ctx.strokeStyle = "white"; ctx.stroke(); ctx.setLineDash([]);
+            }
+
+            update();
+            requestAnimationFrame(gameLoop);
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (moving) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            let currentTeam = currentPlayer === 1 ? team1 : team2;
+            currentTeam.forEach(btn => {
+                if (Math.sqrt((x - btn.x)**2 + (y - btn.y)**2) < btn.radius) {
+                    selectedButton = btn;
+                    isDragging = true;
+                }
+            });
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mousePos.x = e.clientX - rect.left;
+            mousePos.y = e.clientY - rect.top;
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (isDragging && selectedButton) {
+                const rect = canvas.getBoundingClientRect();
+                selectedButton.vx = (selectedButton.x - (e.clientX - rect.left)) * 0.15;
+                selectedButton.vy = (selectedButton.y - (e.clientY - rect.top)) * 0.15;
+                isDragging = false;
+                selectedButton = null;
+                moving = true;
+            }
+        });
+
+        initTeams();
+        gameLoop();
+    </script>
+</body>
+</html>

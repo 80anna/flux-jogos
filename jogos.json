@@ -22,5 +22,11 @@
         "autor": "bernardoAzevedo",
         "arquivo": "sinucaPro.html",
         "imagem": "jogos/assets/sinucaPro.png"
+    },
+    {
+        "nome": "FutBotão",
+        "autor": "bernardoAzevedo",
+        "arquivo": "futBotao.html",
+        "imagem": "jogos/assets/futBotao.png"
     }
 ]
