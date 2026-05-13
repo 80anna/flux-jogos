@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Sinuca Pro</title>
+    <style>
+        body { background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; overflow: hidden; }
+        canvas { background: #1a1a1a; cursor: crosshair; }
+        .score { font-size: 1.5rem; color: #ffeb3b; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+    <div class="score">Bolas encaçapadas: <span id="points">0</span></div>
+    <canvas id="poolTable" width="900" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('poolTable');
+        const ctx = canvas.getContext('2d');
+        const pointsSpan = document.getElementById('points');
+
+        let points = 0;
+        let isDragging = false;
+        let mousePos = { x: 0, y: 0 };
+        const ballRadius = 12;
+        
+        // AJUSTE DE ATRITO: De 0.988 para 0.980 (Para parar mais rápido)
+        const friction = 0.980;
+        
+        const table = { 
+            x: 50, y: 50, w: 800, h: 400, 
+            railColor: "#3e2723", 
+            clothColor: "#2e7d32",
+            pocketSize: 20,
+            borderThickness: 25 
+        };
+
+        const ballColors = ["#ffd600", "#0277bd", "#d32f2f", "#7b1fa2", "#ef6c00", "#2e7d32", "#c62828", "#111", "#ffeb3b", "#1e88e5", "#e53935", "#8e24aa", "#fb8c00", "#43a047", "#b71c1c"];
+        let balls = [];
+
+        function initGame() {
+            balls = [];
+            balls.push({ x: table.x + 200, y: table.y + 200, vx: 0, vy: 0, color: 'white', isWhite: true });
+            let startX = table.x + 550, startY = table.y + 200, count = 0;
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j <= i; j++) {
+                    balls.push({
+                        x: startX + (i * ballRadius * 2.1),
+                        y: startY - (i * ballRadius) + (j * ballRadius * 2.2),
+                        vx: 0, vy: 0, color: ballColors[count] || 'red', isWhite: false
+                    });
+                    count++;
+                }
+            }
+        }
+
+        const pockets = [
+            { x: table.x, y: table.y },
+            { x: table.x + table.w/2, y: table.y - 2 },
+            { x: table.x + table.w, y: table.y },
+            { x: table.x, y: table.y + table.h },
+            { x: table.x + table.w/2, y: table.y + table.h + 2 },
+            { x: table.x + table.w, y: table.y + table.h }
+        ];
+
+        function resolveCollision(b1, b2) {
+            const dx = b2.x - b1.x, dy = b2.y - b1.y, dist = Math.hypot(dx, dy);
+            if (dist < ballRadius * 2) {
+                const overlap = (ballRadius * 2 - dist) / 2;
+                const nx = dx / dist, ny = dy / dist;
+                b1.x -= nx * overlap; b1.y -= ny * overlap;
+                b2.x += nx * overlap; b2.y += ny * overlap;
+                const v1n = b1.vx * nx + b1.vy * ny, v2n = b2.vx * nx + b2.vy * ny;
+                b1.vx += (v2n - v1n) * nx; b1.vy += (v2n - v1n) * ny;
+                b2.vx += (v1n - v2n) * nx; b2.vy += (v1n - v2n) * ny;
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const whiteBall = balls.find(b => b.isWhite);
+            if (whiteBall && Math.hypot(whiteBall.vx, whiteBall.vy) < 0.2) isDragging = true;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mousePos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                const whiteBall = balls.find(b => b.isWhite);
+                const angle = Math.atan2(mousePos.y - whiteBall.y, mousePos.x - whiteBall.x);
+                const dist = Math.min(Math.hypot(whiteBall.x - mousePos.x, whiteBall.y - mousePos.y), 200);
+                whiteBall.vx = Math.cos(angle + Math.PI) * dist * 0.16;
+                whiteBall.vy = Math.sin(angle + Math.PI) * dist * 0.16;
+                isDragging = false;
+            }
+        });
+
+        function update() {
+            for (let i = 0; i < balls.length; i++) {
+                let b = balls[i];
+                b.x += b.vx; b.y += b.vy;
+                b.vx *= friction; b.vy *= friction;
+
+                // Colisão Tabelas
+                if (b.x + ballRadius > table.x + table.w) { b.x = table.x + table.w - ballRadius; b.vx *= -0.8; }
+                if (b.x - ballRadius < table.x) { b.x = table.x + ballRadius; b.vx *= -0.8; }
+                if (b.y + ballRadius > table.y + table.h) { b.y = table.y + table.h - ballRadius; b.vy *= -0.8; }
+                if (b.y - ballRadius < table.y) { b.y = table.y + ballRadius; b.vy *= -0.8; }
+
+                // Parar totalmente se a velocidade for ínfima
+                if (Math.abs(b.vx) < 0.01) b.vx = 0;
+                if (Math.abs(b.vy) < 0.01) b.vy = 0;
+
+                pockets.forEach(p => {
+                    if (Math.hypot(b.x - p.x, b.y - p.y) < table.pocketSize * 0.9) {
+                        if (b.isWhite) { 
+                            b.x = table.x + 200; b.y = table.y + 200; b.vx = 0; b.vy = 0; 
+                        } else { 
+                            balls.splice(i, 1); i--; points++; pointsSpan.innerText = points;
+                        }
+                    }
+                });
+                for (let j = i + 1; j < balls.length; j++) resolveCollision(b, balls[j]);
+            }
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 1. Moldura
+            ctx.fillStyle = table.railColor;
+            ctx.beginPath();
+            ctx.roundRect(table.x - table.borderThickness, table.y - table.borderThickness, table.w + (table.borderThickness * 2), table.h + (table.borderThickness * 2), 10);
+            ctx.fill();
+
+            // 2. Pano
+            ctx.fillStyle = table.clothColor;
+            ctx.fillRect(table.x, table.y, table.w, table.h);
+            
+            // 3. Caçapas
+            pockets.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, table.pocketSize, 0, Math.PI * 2);
+                const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, table.pocketSize);
+                grad.addColorStop(0, "#000");
+                grad.addColorStop(1, "#222");
+                ctx.fillStyle = grad;
+                ctx.fill();
+            });
+
+            const whiteBall = balls.find(b => b.isWhite);
+
+            // 4. Bolas
+            balls.forEach(b => {
+                ctx.save();
+                ctx.shadowColor = "rgba(0,0,0,0.4)";
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetY = 3;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, ballRadius, 0, Math.PI * 2);
+                const grad = ctx.createRadialGradient(b.x-4, b.y-4, 2, b.x, b.y, ballRadius);
+                grad.addColorStop(0, "white");
+                grad.addColorStop(0.2, b.isWhite ? "#fff" : b.color);
+                grad.addColorStop(1, b.isWhite ? "#bbb" : "#000");
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 5. Taco
+            if (whiteBall && whiteBall.vx === 0 && whiteBall.vy === 0) {
+                const angle = Math.atan2(mousePos.y - whiteBall.y, mousePos.x - whiteBall.x);
+                const dist = Math.hypot(mousePos.x - whiteBall.x, mousePos.y - whiteBall.y);
+                const offset = isDragging ? (dist * 0.15) + 14 : 16;
+
+                ctx.save();
+                ctx.translate(whiteBall.x, whiteBall.y);
+                ctx.rotate(angle);
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetY = 6;
+
+                const cueGrad = ctx.createLinearGradient(offset, 0, offset + 300, 0);
+                cueGrad.addColorStop(0, "#3e2723");
+                cueGrad.addColorStop(0.1, "#8d6e63");
+                cueGrad.addColorStop(1, "#211512");
+
+                ctx.fillStyle = cueGrad;
+                ctx.fillRect(offset, -3.5, 300, 7);
+                ctx.fillStyle = "#0288d1";
+                ctx.fillRect(offset, -3.5, 4, 7);
+                ctx.restore();
+            }
+        }
+
+        initGame();
+        update();
+    </script>
+</body>
+</html>

@@ -16,5 +16,11 @@
         "autor": "Thaty",
         "arquivo": "agario.html",
         "imagem": "jogos/assets/agario.png"
+    },
+    {
+        "nome": "Sinuca Pro",
+        "autor": "bernardoAzevedo",
+        "arquivo": "sinucaPro.html",
+        "imagem": "jogos/assets/sinucaPro.png"
     }
 ]
