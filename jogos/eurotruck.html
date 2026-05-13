@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Euro Truck JS - Otimizado</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #64b5f6; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        #ui { 
+            position: absolute; top: 20px; left: 20px; 
+            color: white; background: rgba(10, 15, 30, 0.85); 
+            padding: 20px; border-radius: 12px; border: 1px solid #4da6ff;
+            pointer-events: none; width: 320px; box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        h2 { margin: 0 0 10px 0; color: #4da6ff; text-transform: uppercase; font-size: 22px; letter-spacing: 1px; }
+        p { margin: 8px 0; font-size: 16px; }
+        .highlight { color: #ffcc00; font-weight: bold; font-size: 18px; }
+        #mission-panel { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2); }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h2>🚚 Truck Simulator</h2>
+        <p>Acelerar / Frear: <b>W S</b> ou <b>Setas</b></p>
+        <p>Direção: <b>A D</b></p>
+        <p>Freio de Mão: <b>Espaço</b></p>
+        <p>Velocidade: <span id="speed" class="highlight">0</span> km/h</p>
+        <div id="mission-panel">
+            <p>Score: <span id="score" class="highlight">0</span></p>
+            <p style="font-size: 18px; line-height: 1.4;"><b id="mission" style="color: #00aaff;">Vá até a zona AZUL buscar a carga! Siga a seta.</b></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO BÁSICA ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x64b5f6);
+        scene.fog = new THREE.FogExp2(0x64b5f6, 0.0035);
+
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1500);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. ILUMINAÇÃO ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(300, 400, 200);
+        sunLight.castShadow = true;
+        sunLight.shadow.camera.top = 400; sunLight.shadow.camera.bottom = -400;
+        sunLight.shadow.camera.left = -400; sunLight.shadow.camera.right = 400;
+        sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // --- 3. TERRENO ---
+        function getElevation(x, z) {
+            const hill1 = Math.sin(x * 0.005) * 20 + Math.cos(z * 0.004) * 15;
+            const hill2 = Math.sin(x * 0.015 + z * 0.01) * 5;
+            return hill1 + hill2;
+        }
+
+        const citySize = 800;
+        const groundGeo = new THREE.PlaneGeometry(citySize * 2, citySize * 2, 128, 128);
+        groundGeo.rotateX(-Math.PI / 2);
+        
+        const pos = groundGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            pos.setY(i, getElevation(pos.getX(i), pos.getZ(i)));
+        }
+        groundGeo.computeVertexNormals();
+
+        const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ color: 0x3d8c40, roughness: 1.0 }));
+        ground.receiveShadow = true;
+        ground.matrixAutoUpdate = false; ground.updateMatrix(); // Otimização extrema
+        scene.add(ground);
+
+        // --- 4. GERAÇÃO DA CIDADE OTIMIZADA ---
+        const blockSize = 80;
+        const roadWidth = 18;
+        const validRoads = [];
+        const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 });
+
+        for (let x = -citySize + blockSize; x <= citySize - blockSize; x += blockSize) {
+            for (let z = -citySize + blockSize; z <= citySize - blockSize; z += blockSize) {
+                if (x < citySize - blockSize && (Math.random() > 0.35 || z === -citySize+blockSize || z === citySize-blockSize)) {
+                    validRoads.push({ x1: x, z1: z, x2: x + blockSize, z2: z, dir: 'h' });
+                }
+                if (z < citySize - blockSize && (Math.random() > 0.35 || x === -citySize+blockSize || x === citySize-blockSize)) {
+                    validRoads.push({ x1: x, z1: z, x2: x, z2: z + blockSize, dir: 'v' });
+                }
+            }
+        }
+
+        const stripeData = []; // Coleta dados para InstancedMesh
+
+        validRoads.forEach(r => {
+            const length = blockSize + roadWidth;
+            const rGeo = new THREE.PlaneGeometry(roadWidth, length, 1, 10);
+            rGeo.rotateX(-Math.PI / 2);
+            if (r.dir === 'h') rGeo.rotateY(Math.PI / 2);
+            
+            const rMesh = new THREE.Mesh(rGeo, roadMat);
+            rMesh.position.set((r.x1 + r.x2) / 2, 0, (r.z1 + r.z2) / 2);
+            rMesh.updateMatrixWorld();
+
+            const rPos = rGeo.attributes.position;
+            for (let i = 0; i < rPos.count; i++) {
+                const v = new THREE.Vector3().fromBufferAttribute(rPos, i);
+                rMesh.localToWorld(v);
+                v.y = getElevation(v.x, v.z) + 0.2;
+                rMesh.worldToLocal(v);
+                rPos.setY(i, v.y);
+            }
+            rGeo.computeVertexNormals();
+            rMesh.receiveShadow = true;
+            rMesh.matrixAutoUpdate = false; rMesh.updateMatrix(); // Otimização
+            scene.add(rMesh);
+
+            // Preparar dados das faixas (Para evitar milhares de Draw Calls)
+            const isHoriz = r.dir === 'h';
+            const start = isHoriz ? r.x1 + 12 : r.z1 + 12;
+            const end = isHoriz ? r.x2 - 12 : r.z2 - 12;
+            
+            for (let j = start; j <= end; j += 12) {
+                const sx = isHoriz ? j : r.x1;
+                const sz = isHoriz ? r.z1 : j;
+                const sy = getElevation(sx, sz) + 0.3;
+                
+                const step = 2;
+                const slope = Math.atan2(
+                    getElevation(sx + (isHoriz?step:0), sz + (!isHoriz?step:0)) - getElevation(sx - (isHoriz?step:0), sz - (!isHoriz?step:0)),
+                    step * 2
+                );
+                
+                let rx = -Math.PI / 2, ry = 0, rz = 0;
+                if (isHoriz) { rz = Math.PI / 2; ry = -slope; } 
+                else { rx = -Math.PI/2 - slope; }
+                
+                stripeData.push({ pos: new THREE.Vector3(sx, sy, sz), rot: new THREE.Euler(rx, ry, rz) });
+            }
+        });
+
+        // Aplicando InstancedMesh para as Listras (Resolve o travamento)
+        const stripeInstanced = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }), stripeData.length);
+        const dummy = new THREE.Object3D();
+        stripeData.forEach((data, i) => {
+            dummy.position.copy(data.pos); dummy.rotation.copy(data.rot); dummy.updateMatrix();
+            stripeInstanced.setMatrixAt(i, dummy.matrix);
+        });
+        scene.add(stripeInstanced);
+
+        // PRÉDIOS CORRIGIDOS (Apenas nos quarteirões centrais, fora das ruas)
+        const buildMats = [0xaaaaaa, 0x556677, 0x885544, 0x99aacc].map(c => new THREE.MeshStandardMaterial({color: c}));
+        
+        for (let x = -citySize + blockSize; x <= citySize - blockSize * 2; x += blockSize) {
+            for (let z = -citySize + blockSize; z <= citySize - blockSize * 2; z += blockSize) {
+                // Sorteia se vai ter algo no quarteirão
+                if (Math.random() > 0.4) {
+                    // Posição garantida no centro do bloco (Longe das pontas onde passam as ruas)
+                    const bx = (x + blockSize / 2) + (Math.random() * 30 - 15);
+                    const bz = (z + blockSize / 2) + (Math.random() * 30 - 15);
+                    const elev = getElevation(bx, bz);
+                    
+                    if (Math.random() > 0.3) {
+                        const isSkyscraper = Math.random() > 0.7;
+                        const w = 10 + Math.random() * 15;
+                        const h = isSkyscraper ? 30 + Math.random() * 70 : 8 + Math.random() * 12;
+                        const bMesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), buildMats[Math.floor(Math.random()*buildMats.length)]);
+                        bMesh.position.set(bx, elev + h/2, bz);
+                        bMesh.castShadow = true; bMesh.receiveShadow = true;
+                        bMesh.matrixAutoUpdate = false; bMesh.updateMatrix(); // Otimização
+                        scene.add(bMesh);
+                    } else {
+                        const tGroup = new THREE.Group();
+                        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 5), new THREE.MeshStandardMaterial({color: 0x4a2e00}));
+                        trunk.position.y = 2.5; trunk.castShadow = true;
+                        const leaves = new THREE.Mesh(new THREE.ConeGeometry(5, 10), new THREE.MeshStandardMaterial({color: 0x1e591e}));
+                        leaves.position.y = 8; leaves.castShadow = true;
+                        tGroup.add(trunk, leaves);
+                        tGroup.position.set(bx, elev, bz);
+                        tGroup.matrixAutoUpdate = false; tGroup.updateMatrix(); // Otimização
+                        scene.add(tGroup);
+                    }
+                }
+            }
+        }
+
+        // --- 5. CAMINHÃO ---
+        const truck = new THREE.Group();
+        const truckModel = new THREE.Group(); 
+        truck.add(truckModel);
+
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        
+        // Cabine
+        const chassi = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, 7), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+        chassi.position.set(0, 0.8, 0); chassi.castShadow = true; truckModel.add(chassi);
+        const cabine = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.8, 2.2), new THREE.MeshStandardMaterial({ color: 0x0055dd }));
+        cabine.position.set(0, 2.4, 2.4); cabine.castShadow = true; truckModel.add(cabine);
+        const parabrisa = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 0.1), new THREE.MeshStandardMaterial({ color: 0x050505 }));
+        parabrisa.position.set(0, 3.1, 3.51); truckModel.add(parabrisa);
+
+        // Rodas (Caminhão e Reboque)
+        function addWheel(parent, x, z) {
+            const w = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16), darkMat);
+            w.rotation.z = Math.PI / 2; w.position.set(x, 0.5, z); w.castShadow = true; parent.add(w);
+        }
+        [ [1.4, 2.5], [-1.4, 2.5], [1.4, -1.5], [-1.4, -1.5], [1.4, -2.7], [-1.4, -2.7] ].forEach(pos => addWheel(truckModel, pos[0], pos[1]));
+
+        // Reboque Dinâmico (Cor Aleatória)
+        const trailer = new THREE.Group();
+        const trailerMat = new THREE.MeshStandardMaterial({ color: 0xffffff }); // Material isolado para podermos mudar a cor
+        const trailerBox = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.8, 12), trailerMat);
+        trailerBox.position.set(0, 3.0, -4.5); trailerBox.castShadow = true; trailer.add(trailerBox);
+        [ [1.5, -8], [-1.5, -8], [1.5, -9.5], [-1.5, -9.5] ].forEach(pos => addWheel(trailer, pos[0], pos[1]));
+
+        scene.add(truck);
+
+        // --- 6. INDICADORES E ZONAS ---
+        const arrowGroup = new THREE.Group();
+        const arrowMat = new THREE.MeshStandardMaterial({ color: 0x00aaff, emissive: 0x0055aa, emissiveIntensity: 0.8 });
+        const aHead = new THREE.Mesh(new THREE.ConeGeometry(2, 4, 8), arrowMat); aHead.rotation.x = Math.PI/2; aHead.position.set(0,0,3);
+        const aTail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), arrowMat); aTail.rotation.x = Math.PI/2; aTail.position.set(0,0,-1);
+        arrowGroup.add(aHead, aTail); scene.add(arrowGroup);
+
+        const zoneGeo = new THREE.CylinderGeometry(8, 8, 20, 16);
+        const pickupZone = new THREE.Mesh(zoneGeo, new THREE.MeshBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.4 }));
+        const dropoffZone = new THREE.Mesh(zoneGeo, new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4 }));
+        dropoffZone.visible = false; scene.add(pickupZone); scene.add(dropoffZone);
+
+        let gameScore = 0, hasTrailer = false, currentTarget = pickupZone;
+
+        function setZonePos(zone, refPos) {
+            let cx, cz, dist, attempts = 0;
+            do {
+                const r = validRoads[Math.floor(Math.random() * validRoads.length)];
+                cx = (r.x1 + r.x2) / 2; cz = (r.z1 + r.z2) / 2;
+                dist = refPos ? Math.sqrt((cx-refPos.x)**2 + (cz-refPos.z)**2) : 9999;
+                attempts++;
+            } while(dist < 300 && attempts < 50);
+            zone.position.set(cx, getElevation(cx, cz) + 0.1, cz);
+        }
+        
+        // Cores Aleatórias Vibrantes para a Carga
+        function randomizeCargoColor() {
+            const colors = [0xff0000, 0xff8800, 0xeeeeee, 0x00ffaa, 0xffff00, 0x8800ff, 0xff0088];
+            trailerMat.color.setHex(colors[Math.floor(Math.random() * colors.length)]);
+        }
+
+        setZonePos(pickupZone, new THREE.Vector3(0,0,0)); 
+        scene.add(trailer); trailer.position.copy(pickupZone.position);
+        randomizeCargoColor(); // Aplica cor inicial
+
+        // --- 7. FÍSICA E LOOP ---
+        let velocity = 0;
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        function update() {
+            if (keys['w'] || keys['arrowup']) velocity += 0.008;
+            if (keys['s'] || keys['arrowdown']) velocity -= 0.01;
+            if (keys[' ']) velocity *= 0.85;
+
+            velocity *= 0.985;
+            if (velocity > 1.0) velocity = 1.0;
+            if (velocity < -0.4) velocity = -0.4;
+
+            if (Math.abs(velocity) > 0.02) {
+                const tSpeed = 0.025 * (velocity > 0 ? 1 : -1) * (1 - (Math.abs(velocity)/1.0)*0.3) * (hasTrailer ? 0.7 : 1.0);
+                if (keys['a'] || keys['arrowleft']) truck.rotation.y += tSpeed;
+                if (keys['d'] || keys['arrowright']) truck.rotation.y -= tSpeed;
+            }
+
+            truck.position.x += Math.sin(truck.rotation.y) * velocity;
+            truck.position.z += Math.cos(truck.rotation.y) * velocity;
+            truck.position.y = getElevation(truck.position.x, truck.position.z);
+
+            const dx = Math.sin(truck.rotation.y), dz = Math.cos(truck.rotation.y);
+            const frontY = getElevation(truck.position.x + dx*3, truck.position.z + dz*3);
+            const backY = getElevation(truck.position.x - dx*3, truck.position.z - dz*3);
+            truckModel.rotation.x = -Math.atan2(frontY - backY, 6);
+
+            document.getElementById('speed').innerText = Math.abs(Math.round(velocity * 80));
+
+            // Câmera
+            const cOff = new THREE.Vector3(0, 10, hasTrailer ? -28 : -18).applyMatrix4(truck.matrixWorld);
+            camera.position.lerp(cOff, 0.1);
+            camera.lookAt(truck.position.x, truck.position.y + 4, truck.position.z);
+            camera.fov = 65 + Math.abs(velocity) * 5; camera.updateProjectionMatrix();
+
+            // Seta
+            arrowGroup.position.copy(truck.position).y += 12 + Math.sin(Date.now()*0.005)*2; 
+            const tgtVec = currentTarget.position.clone(); tgtVec.y = arrowGroup.position.y;
+            arrowGroup.lookAt(tgtVec);
+
+            // Regras do Jogo
+            if (!hasTrailer && truck.position.distanceTo(pickupZone.position) < 15) {
+                hasTrailer = true;
+                truckModel.add(trailer);
+                trailer.position.set(0, 0, -2.5); trailer.rotation.set(0,0,0);
+                
+                pickupZone.visible = false;
+                setZonePos(dropoffZone, pickupZone.position);
+                dropoffZone.visible = true; currentTarget = dropoffZone;
+                
+                arrowMat.color.setHex(0x00ff00); arrowMat.emissive.setHex(0x005500);
+                document.getElementById('mission').innerHTML = "Carga acoplada!<br>Siga a seta <span style='color:#00ff00;'>VERDE</span>.";
+            } else if (hasTrailer && truck.position.distanceTo(dropoffZone.position) < 15) {
+                hasTrailer = false;
+                truckModel.remove(trailer); scene.add(trailer);
+                trailer.position.copy(dropoffZone.position);
+                
+                gameScore += 250; document.getElementById('score').innerText = gameScore;
+                randomizeCargoColor(); // Muda cor da PRÓXIMA carga instantaneamente
+                
+                dropoffZone.visible = false;
+                setZonePos(pickupZone, dropoffZone.position);
+                pickupZone.visible = true; currentTarget = pickupZone;
+                
+                arrowMat.color.setHex(0x00aaff); arrowMat.emissive.setHex(0x0055aa);
+                document.getElementById('mission').innerHTML = "Entrega perfeita!<br>Siga a seta <span style='color:#00aaff;'>AZUL</span>.";
+            }
+        }
+
+        function animate() { requestAnimationFrame(animate); update(); renderer.render(scene, camera); }
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        
+        animate();
+    </script>
+</body>
+</html>
