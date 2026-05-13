@@ -34,5 +34,11 @@
         "autor": "bernardoAzevedo",
         "arquivo": "pingPong.html",
         "imagem": "jogos/assets/pingPong.png"
+    },
+    {
+        "nome": "Valorant",
+        "autor": "Zé",
+        "arquivo": "valorant.html",
+        "imagem": "jogos/assets/valorant.png"
     }
 ]
