@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Ping Pong JS</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            border: 5px solid #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Configurações do Jogo
+    const paddleWidth = 10, paddleHeight = 100;
+    let ballX = canvas.width/2, ballY = canvas.height/2;
+    let ballSpeedX = 5, ballSpeedY = 5;
+    
+    let player1Y = 250, player2Y = 250;
+    let score1 = 0, score2 = 0;
+
+    // Movimentação do Mouse
+    canvas.addEventListener('mousemove', (e) => {
+        let rect = canvas.getBoundingClientRect();
+        let root = document.documentElement;
+        let mouseY = e.clientY - rect.top - root.scrollTop;
+        player1Y = mouseY - (paddleHeight/2);
+    });
+
+    function update() {
+        // Movimento da bola
+        ballX += ballSpeedX;
+        ballY += ballSpeedY;
+
+        // IA Simples para o Jogador 2
+        if(player2Y + paddleHeight/2 < ballY - 35) player2Y += 6;
+        else if(player2Y + paddleHeight/2 > ballY + 35) player2Y -= 6;
+
+        // Colisão com Paredes (Cima/Baixo)
+        if(ballY < 0 || ballY > canvas.height) ballSpeedY = -ballSpeedY;
+
+        // Colisão com Raquetes
+        if(ballX < 20) {
+            if(ballY > player1Y && ballY < player1Y + paddleHeight) {
+                ballSpeedX = -ballSpeedX;
+                let deltaY = ballY - (player1Y + paddleHeight/2);
+                ballSpeedY = deltaY * 0.35;
+            } else if (ballX < 0) {
+                score2++; 
+                resetBall();
+            }
+        }
+        if(ballX > canvas.width - 20) {
+            if(ballY > player2Y && ballY < player2Y + paddleHeight) {
+                ballSpeedX = -ballSpeedX;
+                let deltaY = ballY - (player2Y + paddleHeight/2);
+                ballSpeedY = deltaY * 0.35;
+            } else if (ballX > canvas.width) {
+                score1++;
+                resetBall();
+            }
+        }
+    }
+
+    function resetBall() {
+        ballX = canvas.width/2;
+        ballY = canvas.height/2;
+        ballSpeedX = -ballSpeedX;
+    }
+
+    function draw() {
+        // Fundo
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Rede central
+        ctx.strokeStyle = "white";
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2, 0);
+        ctx.lineTo(canvas.width/2, canvas.height);
+        ctx.stroke();
+
+        // Raquetes
+        ctx.fillStyle = "white";
+        ctx.fillRect(10, player1Y, paddleWidth, paddleHeight); // Player
+        ctx.fillRect(canvas.width - 20, player2Y, paddleWidth, paddleHeight); // IA
+
+        // Bola
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 10, 0, Math.PI*2, true);
+        ctx.fill();
+
+        // Placar
+        ctx.font = "30px Arial";
+        ctx.fillText(score1, 100, 100);
+        ctx.fillText(score2, canvas.width - 130, 100);
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+</script>
+</body>
+</html>

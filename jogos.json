@@ -28,5 +28,11 @@
         "autor": "bernardoAzevedo",
         "arquivo": "futBotao.html",
         "imagem": "jogos/assets/futBotao.png"
+    },
+    {
+        "nome": "pingPong",
+        "autor": "bernardoAzevedo",
+        "arquivo": "pingPong.html",
+        "imagem": "jogos/assets/pingPong.png"
     }
 ]
