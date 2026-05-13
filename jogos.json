@@ -3,7 +3,7 @@
         "nome": "Pixel Fighter",
         "autor": "Anna",
         "arquivo": "pixelfighter.html",
-        "imagem": "/jogos/assets/pixelfighter.png"
+        "imagem": "jogos/assets/pixelfighter.png"
     },
     {
         "nome": "Point & Click",
