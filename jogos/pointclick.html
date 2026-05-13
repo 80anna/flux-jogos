@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caça Bolinhas</title>
+
+<style>
+    *{
+        margin:0;
+        padding:0;
+        box-sizing:border-box;
+        font-family:Arial, Helvetica, sans-serif;
+    }
+
+    body{
+        overflow:hidden;
+        background:#111;
+        color:white;
+    }
+
+    #hud{
+        position:fixed;
+        top:15px;
+        left:15px;
+        z-index:999;
+        font-size:24px;
+        display:flex;
+        gap:30px;
+    }
+
+    #gameArea{
+        width:100vw;
+        height:100vh;
+        position:relative;
+    }
+
+    .ball{
+        position:absolute;
+        width:60px;
+        height:60px;
+        border-radius:50%;
+        cursor:pointer;
+        animation:pop .15s ease;
+    }
+
+    @keyframes pop{
+        from{
+            transform:scale(0);
+        }
+        to{
+            transform:scale(1);
+        }
+    }
+
+    #startScreen,
+    #endScreen{
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,.9);
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        align-items:center;
+        z-index:1000;
+    }
+
+    button{
+        margin-top:20px;
+        padding:15px 30px;
+        font-size:22px;
+        border:none;
+        border-radius:10px;
+        cursor:pointer;
+    }
+
+    h1{
+        font-size:48px;
+        margin-bottom:10px;
+    }
+
+    p{
+        font-size:24px;
+    }
+</style>
+</head>
+<body>
+
+<div id="hud">
+    <div>Pontos: <span id="score">0</span></div>
+    <div>Melhor pontuação: <span id="bestScore">0</span></div>
+    <div>Tempo: <span id="time">30</span>s</div>
+</div>
+
+<div id="gameArea"></div>
+
+<div id="startScreen">
+    <h1>Caça Bolinhas</h1>
+    <p>Clique no maior número de bolinhas em 30 segundos!</p>
+    <button onclick="startGame()">Começar</button>
+</div>
+
+<div id="endScreen" style="display:none;">
+    <h1>Fim de jogo!</h1>
+    <p>Sua pontuação: <span id="finalScore">0</span></p>
+    <p>Sua melhor pontuação: <span id="finalBestScore">0</span></p>
+    <button onclick="restartGame()">Jogar Novamente</button>
+</div>
+
+<script>
+const gameArea = document.getElementById("gameArea");
+const scoreEl = document.getElementById("score");
+const timeEl = document.getElementById("time");
+const finalScoreEl = document.getElementById("finalScore");
+const finalBestScoreEl = document.getElementById("finalBestScore");
+const bestScoreEl = document.getElementById("bestScore");
+
+let score = 0;
+let timeLeft = 30;
+let gameInterval;
+let timerInterval;
+let gameRunning = false;
+
+function randomColor(){
+    return `hsl(${Math.random() * 360}, 80%, 60%)`;
+}
+
+function createBall(){
+    if(!gameRunning) return;
+
+    const ball = document.createElement("div");
+    ball.classList.add("ball");
+
+    const size = Math.random() * 50 + 40;
+
+    ball.style.width = size + "px";
+    ball.style.height = size + "px";
+
+    ball.style.background = randomColor();
+
+    const maxX = window.innerWidth - size;
+    const maxY = window.innerHeight - size;
+
+    const x = Math.random() * maxX;
+    const y = Math.random() * maxY;
+
+    ball.style.left = x + "px";
+    ball.style.top = y + "px";
+
+    ball.addEventListener("click", () => {
+        score++;
+        scoreEl.textContent = score;
+        ball.remove();
+    });
+
+    gameArea.appendChild(ball);
+
+    setTimeout(() => {
+        ball.remove();
+    }, 1200);
+}
+
+function startGame(){
+    document.getElementById("startScreen").style.display = "none";
+
+    score = 0;
+    timeLeft = 30;
+
+    scoreEl.textContent = score;
+    timeEl.textContent = timeLeft;
+    bestScoreEl.textContent = localStorage.getItem('bestScore');
+
+    gameRunning = true;
+
+    gameInterval = setInterval(createBall, 300);
+
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        timeEl.textContent = timeLeft;
+
+        if(timeLeft <= 0){
+            endGame();
+        }
+    }, 1000);
+}
+
+function endGame(){
+    gameRunning = false;
+
+    clearInterval(gameInterval);
+    clearInterval(timerInterval);
+
+    document.querySelectorAll(".ball").forEach(ball => ball.remove());
+
+    finalScoreEl.textContent = score;
+
+    document.getElementById("endScreen").style.display = "flex";
+
+    bestScore = localStorage.getItem("bestScore");
+    if(score > bestScore) {
+        localStorage.setItem("bestScore", score);
+    }
+    finalBestScoreEl.textContent = bestScore;
+}
+
+function restartGame(){
+    document.getElementById("endScreen").style.display = "none";
+    startGame();
+}
+</script>
+
+</body>
+</html>

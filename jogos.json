@@ -1,0 +1,20 @@
+[
+    {
+        "nome": "Pixel Fighter",
+        "autor": "Anna",
+        "arquivo": "pixelfighter.html",
+        "imagem": "/jogos/assets/pixelfighter.png"
+    },
+    {
+        "nome": "Point & Click",
+        "autor": "Anna",
+        "arquivo": "pointclick.html",
+        "imagem": "/jogos/assets/pointclick.png"
+    },
+    {
+        "nome": "Agar.io",
+        "autor": "Thaty",
+        "arquivo": "agario.html",
+        "imagem": "/jogos/assets/agario.png"
+    }
+]

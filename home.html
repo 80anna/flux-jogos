@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flux Jogos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            background: rgba(11, 12, 16, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(69, 162, 158, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+        }
+
+        .header-content {
+            width: 90%;
+            max-width: 1200px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+
+        .logo:hover {
+            transform: scale(1.02);
+        }
+
+        .logo-icon {
+            filter: drop-shadow(0 0 6px rgba(102, 252, 241, 0.4));
+        }
+
+        header h1 {
+            font-size: 1.6rem;
+            background: linear-gradient(90deg, #ffffff 0%, #66fcf1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 800;
+            margin: 0;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 30px;
+            width: 90%;
+            max-width: 1200px;
+            padding-bottom: 60px;
+        }
+
+        .game-card {
+            background-color: #1f2833;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            color: white;
+            border: 1px solid transparent;
+        }
+
+        .game-card:hover {
+            transform: translateY(-5px);
+            border-color: #45a29e;
+            box-shadow: 0 8px 25px rgba(102, 252, 241, 0.15);
+        }
+
+        .game-thumbnail {
+            width: 100%;
+            height: 160px; 
+            object-fit: cover;
+            border-bottom: 2px solid #0b0c10;
+            transition: opacity 0.3s ease;
+        }
+
+        .game-card:hover .game-thumbnail {
+            opacity: 0.9;
+        }
+
+        .game-info {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .game-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .game-author {
+            font-size: 0.85rem;
+            color: #8c92ac;
+            font-weight: 400;
+        }
+        
+        .status-message {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            color: #8c92ac;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a href="#" class="logo">
+                <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#66fcf1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="6" y1="11" x2="10" y2="11"></line>
+                    <line x1="8" y1="9" x2="8" y2="13"></line>
+                    <line x1="15" y1="12" x2="15.01" y2="12"></line>
+                    <line x1="18" y1="10" x2="18.01" y2="10"></line>
+                    <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"></path>
+                </svg>
+                <h1>Flux Jogos</h1>
+            </a>
+            </div>
+    </header>
+
+    <div class="game-grid" id="grid-jogos">
+        <div class="status-message">Carregando jogos...</div>
+    </div>
+
+    <script>
+        async function carregarJogos() {
+            const grid = document.getElementById('grid-jogos');
+
+            try {
+                const response = await fetch('jogos.json');
+                
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP! status: ${response.status}`);
+                }
+                
+                const jogos = await response.json();
+                
+                grid.innerHTML = '';
+
+                jogos.forEach(jogo => {
+                    const card = document.createElement('a');
+                    card.classList.add('game-card');
+                    card.href = `jogos/${jogo.arquivo}`; 
+
+                    const imgThumbnail = document.createElement('img');
+                    imgThumbnail.classList.add('game-thumbnail');
+                    imgThumbnail.src = jogo.imagem;
+                    imgThumbnail.alt = `Capa do jogo ${jogo.nome}`;
+                    imgThumbnail.loading = "lazy";
+
+                    const divInfo = document.createElement('div');
+                    divInfo.classList.add('game-info');
+
+                    const divTitulo = document.createElement('div');
+                    divTitulo.classList.add('game-title');
+                    divTitulo.textContent = jogo.nome;
+
+                    const divAutor = document.createElement('div');
+                    divAutor.classList.add('game-author');
+                    divAutor.textContent = `Por ${jogo.autor}`;
+
+                    divInfo.appendChild(divTitulo);
+                    divInfo.appendChild(divAutor);
+                    
+                    card.appendChild(imgThumbnail);
+                    card.appendChild(divInfo);
+                    
+                    grid.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error("Erro ao carregar os jogos:", error);
+                grid.innerHTML = '<div class="status-message">Erro ao carregar o catálogo de jogos. Verifique se o servidor está rodando.</div>';
+            }
+        }
+
+        window.onload = carregarJogos;
+    </script>
+
+</body>
+</html>

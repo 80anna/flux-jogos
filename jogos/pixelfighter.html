@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pixel Fighters</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      overflow: hidden;
+      background: #0b1020;
+      font-family: Arial, sans-serif;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: linear-gradient(#1b2b52, #0f172a 60%, #202020 60%, #2e2e2e);
+      border: 4px solid #ffffff22;
+    }
+
+    .controls {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-size: 14px;
+      line-height: 1.5;
+      text-shadow: 2px 2px 4px black;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <div class="title">⚔ PIXEL FIGHTERS ⚔</div>
+    <div><b>Jogador 1</b>: A/D mover • W pular • F soco • G chute</div>
+    <div><b>Jogador 2</b>: ←/→ mover • ↑ pular • K soco • L chute</div>
+  </div>
+
+  <canvas id="game" width="1200" height="650"></canvas>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const gravity = 0.8;
+    const ground = 520;
+
+    const keys = {};
+
+    class Fighter {
+      constructor(config) {
+        this.name = config.name;
+        this.x = config.x;
+        this.y = config.y;
+        this.w = 70;
+        this.h = 140;
+        this.color = config.color;
+        this.vx = 0;
+        this.vy = 0;
+        this.speed = 7;
+        this.jumpForce = -18;
+        this.health = 100;
+        this.facing = 1;
+        this.isAttacking = false;
+        this.attackCooldown = 0;
+        this.hitCooldown = 0;
+        this.attackType = '';
+        this.score = 0;
+        this.controls = config.controls;
+      }
+
+      update(enemy) {
+        this.vy += gravity;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.y + this.h >= ground) {
+          this.y = ground - this.h;
+          this.vy = 0;
+        }
+
+        if (this.x < 0) this.x = 0;
+        if (this.x + this.w > canvas.width) this.x = canvas.width - this.w;
+
+        this.vx = 0;
+
+        if (keys[this.controls.left]) {
+          this.vx = -this.speed;
+          this.facing = -1;
+        }
+
+        if (keys[this.controls.right]) {
+          this.vx = this.speed;
+          this.facing = 1;
+        }
+
+        if (keys[this.controls.jump] && this.y + this.h >= ground) {
+          this.vy = this.jumpForce;
+        }
+
+        if (this.attackCooldown > 0) this.attackCooldown--;
+        if (this.hitCooldown > 0) this.hitCooldown--;
+
+        if (keys[this.controls.punch] && this.attackCooldown === 0) {
+          this.attack(enemy, 8, 'punch');
+        }
+
+        if (keys[this.controls.kick] && this.attackCooldown === 0) {
+          this.attack(enemy, 14, 'kick');
+        }
+      }
+
+      attack(enemy, damage, type) {
+        this.isAttacking = true;
+        this.attackCooldown = 28;
+        this.attackType = type;
+
+        const range = type === 'kick' ? 95 : 75;
+
+        const attackBox = {
+          x: this.facing === 1 ? this.x + this.w : this.x - range,
+          y: this.y + 20,
+          w: range,
+          h: 60
+        };
+
+        if (
+          attackBox.x < enemy.x + enemy.w &&
+          attackBox.x + attackBox.w > enemy.x &&
+          attackBox.y < enemy.y + enemy.h &&
+          attackBox.y + attackBox.h > enemy.y
+        ) {
+          if (enemy.hitCooldown === 0) {
+            enemy.health -= damage;
+            enemy.hitCooldown = 15;
+            enemy.vx = this.facing * 12;
+          }
+        }
+
+        setTimeout(() => {
+          this.isAttacking = false;
+        }, 140);
+      }
+
+      draw() {
+        ctx.save();
+
+        if (this.hitCooldown > 0) {
+          ctx.globalAlpha = 0.7;
+        }
+
+        // sombra
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(this.x + this.w/2, ground + 5, 35, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // corpo
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+
+        // cabeça
+        ctx.fillStyle = '#ffd6b0';
+        ctx.beginPath();
+        ctx.arc(this.x + this.w/2, this.y + 25, 22, 0, Math.PI * 2);
+        ctx.fill();
+
+        // faixa
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(this.x + 10, this.y + 52, 50, 8);
+
+        // pernas
+        ctx.fillStyle = '#111';
+        ctx.fillRect(this.x + 10, this.y + 100, 18, 40);
+        ctx.fillRect(this.x + 42, this.y + 100, 18, 40);
+
+        // ataque
+        if (this.isAttacking) {
+          ctx.fillStyle = this.attackType === 'kick' ? '#ff9900' : '#ffee00';
+
+          if (this.facing === 1) {
+            ctx.fillRect(this.x + this.w, this.y + 50, 40, 20);
+          } else {
+            ctx.fillRect(this.x - 40, this.y + 50, 40, 20);
+          }
+        }
+
+        ctx.restore();
+      }
+    }
+
+    const player1 = new Fighter({
+      name: 'Player 1',
+      x: 250,
+      y: 100,
+      color: '#3b82f6',
+      controls: {
+        left: 'a',
+        right: 'd',
+        jump: 'w',
+        punch: 'f',
+        kick: 'g'
+      }
+    });
+
+    const player2 = new Fighter({
+      name: 'Player 2',
+      x: 850,
+      y: 100,
+      color: '#ef4444',
+      controls: {
+        left: 'ArrowLeft',
+        right: 'ArrowRight',
+        jump: 'ArrowUp',
+        punch: 'k',
+        kick: 'l'
+      }
+    });
+
+    let timer = 99;
+    let gameOver = false;
+
+    setInterval(() => {
+      if (!gameOver) {
+        timer--;
+
+        if (timer <= 0) {
+          finishGame();
+        }
+      }
+    }, 1000);
+
+    function finishGame() {
+      gameOver = true;
+    }
+
+    function drawArena() {
+      // lua
+      ctx.fillStyle = '#fff7cc';
+      ctx.beginPath();
+      ctx.arc(1000, 90, 45, 0, Math.PI * 2);
+      ctx.fill();
+
+      // prédios
+      for (let i = 0; i < 12; i++) {
+        const x = i * 110;
+        const h = 120 + Math.sin(i * 2) * 50;
+
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(x, 220, 90, h + 200);
+
+        for (let j = 0; j < 8; j++) {
+          ctx.fillStyle = Math.random() > 0.8 ? '#ffd700' : '#1f2937';
+          ctx.fillRect(x + 10, 240 + j * 25, 12, 12);
+          ctx.fillRect(x + 35, 240 + j * 25, 12, 12);
+          ctx.fillRect(x + 60, 240 + j * 25, 12, 12);
+        }
+      }
+
+      // chão
+      ctx.fillStyle = '#3f3f46';
+      ctx.fillRect(0, ground, canvas.width, canvas.height - ground);
+
+      for (let i = 0; i < canvas.width; i += 50) {
+        ctx.strokeStyle = '#5f5f5f';
+        ctx.beginPath();
+        ctx.moveTo(i, ground);
+        ctx.lineTo(i + 30, ground + 30);
+        ctx.stroke();
+      }
+    }
+
+    function drawUI() {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(40, 40, 420, 35);
+      ctx.fillRect(740, 40, 420, 35);
+
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(45, 45, player1.health * 4.1, 25);
+      ctx.fillRect(745, 45, player2.health * 4.1, 25);
+
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(40, 40, 420, 35);
+      ctx.strokeRect(740, 40, 420, 35);
+
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 42px Arial';
+      ctx.fillText(timer, 575, 70);
+
+      ctx.font = 'bold 22px Arial';
+      ctx.fillText(player1.name, 40, 30);
+      ctx.fillText(player2.name, 1020, 30);
+    }
+
+    function checkWinner() {
+      if (player1.health <= 0 || player2.health <= 0) {
+        finishGame();
+      }
+    }
+
+    function drawWinner() {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+
+      ctx.font = 'bold 72px Arial';
+
+      let text = 'EMPATE';
+
+      if (player1.health > player2.health) {
+        text = 'PLAYER 1 VENCEU';
+      } else if (player2.health > player1.health) {
+        text = 'PLAYER 2 VENCEU';
+      }
+
+      ctx.fillText(text, canvas.width / 2, 250);
+
+      ctx.font = '32px Arial';
+      ctx.fillText('Pressione ENTER para reiniciar', canvas.width / 2, 350);
+
+      ctx.textAlign = 'left';
+    }
+
+    function restart() {
+      player1.health = 100;
+      player2.health = 100;
+      player1.x = 250;
+      player2.x = 850;
+      player1.y = 100;
+      player2.y = 100;
+      timer = 99;
+      gameOver = false;
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawArena();
+      drawUI();
+
+      player1.draw();
+      player2.draw();
+
+      if (!gameOver) {
+        player1.update(player2);
+        player2.update(player1);
+        checkWinner();
+      } else {
+        drawWinner();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('keydown', e => {
+      keys[e.key] = true;
+
+      if (gameOver && e.key === 'Enter') {
+        restart();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      keys[e.key] = false;
+    });
+
+    animate();
+  </script>
+</body>
+</html>
