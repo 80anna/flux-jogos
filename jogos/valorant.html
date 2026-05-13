@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valorant Web Prototype Pro - IA Update</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; user-select: none; }
+        
+        #score-board { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 24px; font-weight: bold; z-index: 10; pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.7); }
+
+        #hud { position: absolute; bottom: 0; left: 0; width: 100%; height: 100px; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); display: flex; justify-content: space-between; align-items: flex-end; padding: 20px 50px; box-sizing: border-box; color: white; z-index: 10; pointer-events: none; }
+        .hud-section { display: flex; align-items: baseline; gap: 15px; }
+        #hp-container { font-size: 32px; font-weight: bold; color: #00ffcc; }
+        #hp-container span { font-size: 48px; }
+        #ammo-container { font-size: 24px; font-weight: bold; }
+        #ammo-container span:first-child { font-size: 48px; color: #ffbc00; }
+
+        #abilities { display: flex; gap: 20px; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); }
+        .ability { width: 60px; height: 60px; background-color: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255,255,255,0.5); border-radius: 8px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; text-align: center; transition: 0.2s; color: rgba(255,255,255,0.8); }
+        .ability.on-cooldown { background-color: rgba(255, 0, 0, 0.3); color: #888; border-color: #555; transform: scale(0.95); }
+
+        /* Deixei o fundo da overlay branco total e mais imersivo */
+        #flash-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #ffffff; opacity: 0; pointer-events: none; z-index: 50; transition: opacity 0.05s; }
+        #damage-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 100px rgba(255, 0, 0, 0); pointer-events: none; z-index: 49; transition: box-shadow 0.1s; }
+
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; width: 20px; height: 20px; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background-color: #00ffcc; box-shadow: 0 0 2px #000; }
+        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
+        .menu-screen { position: absolute; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.85); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; backdrop-filter: blur(5px); }
+        .menu-screen h1 { font-size: 64px; color: #ff4655; margin-bottom: 10px; letter-spacing: 2px; text-transform: uppercase; }
+        .menu-screen p { font-size: 18px; margin-bottom: 30px; text-align: center; line-height: 1.6; color: #ccc; }
+        .menu-screen b { color: #fff; }
+        .btn { padding: 15px 40px; font-size: 20px; font-weight: bold; color: white; background-color: #ff4655; border: none; cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        .btn:hover { background-color: #ff2a3b; transform: translateY(-3px); box-shadow: 0 5px 15px rgba(255, 70, 85, 0.4); }
+    </style>
+</head>
+<body>
+
+    <div id="score-board">Pontuação: <span id="score">0</span></div>
+    
+    <div id="hud">
+        <div class="hud-section" id="hp-container">HP: <span id="hp">100</span></div>
+        <div id="abilities">
+            <div class="ability" id="ab-flash">Q<br>Flash</div>
+            <div class="ability" id="ab-dash">E<br>Dash</div>
+            <div class="ability" id="ab-smoke">C<br>Smoke</div>
+        </div>
+        <div class="hud-section" id="ammo-container"><span id="ammo">25</span> / <span id="reserve">75</span></div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="flash-overlay"></div>
+    <div id="damage-overlay"></div>
+    
+    <div id="menu" class="menu-screen">
+        <h1>PROJETO FPS</h1>
+        <p><b>WASD:</b> Mover | <b>Mouse:</b> Olhar e Atirar | <b>R:</b> Recarregar<br>
+           <b>E:</b> Dash (Impulso na direção WASD pressionada)<br>
+           <b>Q:</b> Flashbang | <b>C:</b> Fumaça</p>
+        <button id="btn-iniciar" class="btn">ENTRAR NO MAPA</button>
+    </div>
+
+    <div id="game-over" class="menu-screen" style="display: none;">
+        <h1>ELIMINADO</h1>
+        <button id="btn-restart" class="btn">TENTAR NOVAMENTE</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // --- ESTADO DO JOGO ---
+        let hp = 100, ammo = 25, reserve = 75, score = 0;
+        const maxAmmo = 25;
+        let isReloading = false, isAlive = true;
+        const numInimigosIniciais = 4; 
+
+        const cooldowns = { dash: { active: false, time: 2000 }, flash: { active: false, time: 7000 }, smoke: { active: false, time: 10000 } };
+
+        // --- SETUP THREE.JS ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 35); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+        sunLight.position.set(30, 50, 20);
+        sunLight.castShadow = true;
+        sunLight.shadow.camera.left = -50; sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50; sunLight.shadow.camera.bottom = -50;
+        scene.add(sunLight);
+
+        // --- OBJETOS GLOBAIS E GRUPOS ---
+        const controls = new PointerLockControls(camera, document.body);
+        const raycaster = new THREE.Raycaster(); 
+        
+        const obstacles = []; 
+        const enemies = [];
+        const enemyProjectiles = [];
+        
+        // NOVO: Array para guardar as smokes ativas na cena
+        const activeSmokes = []; 
+
+        const playerTrailMat = new THREE.LineBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.8, linewidth: 2 });
+        const projGeo = new THREE.SphereGeometry(0.1);
+        const enemyProjMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); 
+
+        // --- CONSTRUTOR DE MAPA ---
+        const matChao = new THREE.MeshStandardMaterial({ color: 0x3a4f41, roughness: 1.0 });
+        const matConcreto = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 });
+        const matRampa = new THREE.MeshStandardMaterial({ color: 0xb5651d, roughness: 0.9 }); 
+        const matCaixa = new THREE.MeshStandardMaterial({ color: 0x225588, roughness: 0.5 }); 
+
+        const floorGeo = new THREE.BoxGeometry(100, 1, 100);
+        const floor = new THREE.Mesh(floorGeo, matChao);
+        floor.position.y = -0.5; 
+        floor.receiveShadow = true;
+        scene.add(floor);
+        obstacles.push(floor);
+
+        function createBox(x, y, z, w, h, d, mat) {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const box = new THREE.Mesh(geo, mat);
+            box.position.set(x, y, z);
+            box.castShadow = true; box.receiveShadow = true;
+            scene.add(box);
+            obstacles.push(box);
+            return box;
+        }
+
+        function createRamp(x1, y1, z1, x2, y2, z2, width) {
+            const distance = new THREE.Vector3(x1, y1, z1).distanceTo(new THREE.Vector3(x2, y2, z2));
+            const geo = new THREE.BoxGeometry(width, 0.5, distance);
+            const rampa = new THREE.Mesh(geo, matRampa);
+            rampa.position.set((x1+x2)/2, (y1+y2)/2, (z1+z2)/2);
+            rampa.lookAt(x2, y2, z2); 
+            rampa.castShadow = true; rampa.receiveShadow = true;
+            scene.add(rampa);
+            obstacles.push(rampa);
+        }
+
+        createBox(0, 2.5, 0, 12, 5, 20, matConcreto); 
+        createRamp(0, 0, 30, 0, 5, 10, 12); 
+        createRamp(0, 0, -30, 0, 5, -10, 12);
+        createBox(15, 2, 10, 4, 4, 4, matCaixa);
+        createBox(-15, 1.5, 5, 3, 3, 3, matCaixa);
+        createBox(-15, 4.5, 5, 2, 3, 2, matCaixa); 
+        createBox(0, 6.5, 0, 4, 3, 4, matCaixa); 
+        createBox(20, 2.5, -15, 8, 5, 2, matConcreto); 
+
+        // --- INIMIGOS ---
+        const enemyGeo = new THREE.CapsuleGeometry(0.5, 1.2, 4, 8); 
+        const enemyMat = new THREE.MeshStandardMaterial({ color: 0xff4655, roughness: 0.5 });
+
+        function spawnEnemy() {
+            if (enemies.length >= 5) return; 
+            const enemy = new THREE.Mesh(enemyGeo, enemyMat);
+            
+            const rx = (Math.random() - 0.5) * 60;
+            const rz = (Math.random() - 0.5) * 60;
+            
+            raycaster.set(new THREE.Vector3(rx, 50, rz), new THREE.Vector3(0, -1, 0));
+            const hits = raycaster.intersectObjects(obstacles);
+            let ry = 0;
+            if (hits.length > 0) ry = hits[0].point.y;
+
+            enemy.position.set(rx, ry + 1.1, rz); 
+            enemy.castShadow = true;
+            
+            // NOVO: blindUntil controla até quando a IA ficará atordoada pela flash
+            enemy.userData = { 
+                hp: 100, 
+                lastShot: performance.now() + Math.random() * 3000,
+                blindUntil: 0 
+            };
+            
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        for (let i = 0; i < numInimigosIniciais; i++) spawnEnemy();
+
+        function shootEnemyProjectile(fromMesh, toPos) {
+            const projectile = new THREE.Mesh(projGeo, enemyProjMat);
+            projectile.position.set(fromMesh.position.x, fromMesh.position.y + 0.6, fromMesh.position.z);
+            
+            const dir = new THREE.Vector3().subVectors(toPos, projectile.position).normalize();
+            projectile.userData = { direction: dir, speed: 25, life: 3.0 };
+            
+            scene.add(projectile);
+            enemyProjectiles.push(projectile);
+        }
+
+        // --- SISTEMA DO JOGADOR ---
+        function updateHUD() {
+            document.getElementById('hp').innerText = Math.max(0, Math.ceil(hp));
+            document.getElementById('ammo').innerText = ammo;
+            document.getElementById('reserve').innerText = reserve;
+            document.getElementById('score').innerText = score;
+        }
+
+        function takeDamage(amount) {
+            if (!isAlive) return;
+            hp -= amount;
+            updateHUD();
+            
+            const dmgOverlay = document.getElementById('damage-overlay');
+            dmgOverlay.style.boxShadow = 'inset 0 0 100px rgba(255, 0, 0, 0.8)';
+            setTimeout(() => { dmgOverlay.style.boxShadow = 'inset 0 0 100px rgba(255, 0, 0, 0)'; }, 150);
+
+            if (hp <= 0) {
+                isAlive = false;
+                controls.unlock();
+                document.getElementById('game-over').style.display = 'flex';
+            }
+        }
+
+        function reload() {
+            if (isReloading || ammo === maxAmmo || reserve === 0) return;
+            isReloading = true;
+            document.getElementById('ammo').innerText = "R..";
+            setTimeout(() => {
+                const needed = maxAmmo - ammo;
+                const toReload = Math.min(needed, reserve);
+                ammo += toReload; reserve -= toReload;
+                isReloading = false; updateHUD();
+            }, 1500);
+        }
+
+        function createPlayerTracer(from, to) {
+            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([from, to]), playerTrailMat);
+            scene.add(line);
+            setTimeout(() => { scene.remove(line); line.geometry.dispose(); }, 80); 
+        }
+
+        function playerShoot() {
+            if (!isAlive || !controls.isLocked || isReloading || ammo <= 0) {
+                if (ammo <= 0 && !isReloading) reload(); return;
+            }
+            ammo--; updateHUD();
+
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const targets = [...enemies, ...obstacles];
+            const intersects = raycaster.intersectObjects(targets);
+
+            let endPoint = new THREE.Vector3();
+            raycaster.ray.at(100, endPoint); 
+
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                endPoint.copy(hit.point); 
+
+                if (enemies.includes(hit.object)) {
+                    const hitEnemy = hit.object;
+                    scene.remove(hitEnemy);
+                    enemies.splice(enemies.indexOf(hitEnemy), 1);
+                    score += 100; updateHUD();
+                    setTimeout(spawnEnemy, 2000 + Math.random() * 2000);
+                }
+            }
+
+            const visualOrigin = camera.position.clone().add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.5));
+            visualOrigin.x += camera.getWorldDirection(new THREE.Vector3()).z * 0.2; 
+            createPlayerTracer(visualOrigin, endPoint);
+        }
+
+        // --- HABILIDADES ---
+        function activateCooldown(id, dataObj) {
+            dataObj.active = true;
+            const el = document.getElementById(id);
+            el.classList.add('on-cooldown');
+            setTimeout(() => { dataObj.active = false; el.classList.remove('on-cooldown'); }, dataObj.time);
+        }
+
+        function useDash() {
+            if (cooldowns.dash.active || !isAlive) return;
+            const dashPower = 120; 
+            let dashed = false;
+
+            if (moveForward) { velocity.z -= dashPower; dashed = true; }
+            if (moveBackward) { velocity.z += dashPower; dashed = true; }
+            if (moveLeft) { velocity.x += dashPower; dashed = true; } 
+            if (moveRight) { velocity.x -= dashPower; dashed = true; } 
+            
+            if (!dashed) velocity.z -= dashPower; 
+            
+            camera.fov *= 1.1; camera.updateProjectionMatrix();
+            setTimeout(()=> { camera.fov /= 1.1; camera.updateProjectionMatrix(); }, 150);
+            activateCooldown('ab-dash', cooldowns.dash);
+        }
+
+        function useFlashbang() {
+            if (cooldowns.flash.active || !isAlive) return;
+            activateCooldown('ab-flash', cooldowns.flash);
+
+            const flashGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.2);
+            const flashMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff });
+            const flashObj = new THREE.Mesh(flashGeo, flashMat);
+            flashObj.castShadow = true;
+            
+            const camDir = camera.getWorldDirection(new THREE.Vector3());
+            flashObj.position.copy(camera.position).addScaledVector(camDir, 0.5);
+            scene.add(flashObj);
+
+            const flashVel = camDir.clone().multiplyScalar(22); 
+            flashVel.y += 6; 
+            
+            let flashAliveTime = 0;
+            const detonaTime = 1.5;
+
+            const flashInterval = setInterval(() => {
+                const dt = 0.016; 
+                flashAliveTime += dt;
+                
+                const moveDist = flashVel.length() * dt;
+                const dirAtual = flashVel.clone().normalize();
+                
+                raycaster.set(flashObj.position, dirAtual);
+                const hits = raycaster.intersectObjects(obstacles);
+
+                if (hits.length > 0 && hits[0].distance <= moveDist + 0.1) {
+                    const hitNormal = hits[0].face.normal.clone();
+                    const normalMatrix = new THREE.Matrix3().getNormalMatrix(hits[0].object.matrixWorld);
+                    hitNormal.applyMatrix3(normalMatrix).normalize();
+
+                    flashVel.reflect(hitNormal);
+                    flashVel.multiplyScalar(0.65); 
+                    
+                    flashObj.position.copy(hits[0].point).add(hitNormal.multiplyScalar(0.1));
+                } else {
+                    flashObj.position.addScaledVector(flashVel, dt);
+                }
+
+                flashVel.y -= 20 * dt; 
+
+                if (flashAliveTime >= detonaTime) {
+                    clearInterval(flashInterval);
+                    detonarFlash(flashObj.position);
+                    scene.remove(flashObj);
+                }
+            }, 16);
+        }
+
+        function detonarFlash(posDetonacao) {
+            const pointLight = new THREE.PointLight(0xffffff, 15, 40);
+            pointLight.position.copy(posDetonacao);
+            scene.add(pointLight);
+            setTimeout(() => scene.remove(pointLight), 100);
+
+            // --- 1. CEGAR O JOGADOR ---
+            const distJogador = camera.position.distanceTo(posDetonacao);
+            if (distJogador <= 40) {
+                const vecToFlash = posDetonacao.clone().sub(camera.position).normalize();
+                const camLookDir = camera.getWorldDirection(new THREE.Vector3());
+                const dot = camLookDir.dot(vecToFlash); 
+
+                if (dot >= 0) { // Se a flash explodiu na metade da frente (FOV 180)
+                    raycaster.set(camera.position, vecToFlash);
+                    const barriers = raycaster.intersectObjects(obstacles);
+                    
+                    if (barriers.length === 0 || barriers[0].distance >= distJogador) {
+                        // NOVO CÁLCULO DE FORÇA DA FLASHBANG
+                        // Mapeia o dot para garantir pure white se estiver perto
+                        let calcOpacidade = THREE.MathUtils.mapLinear(dot, 0.0, 1.0, 0.7, 1.3) * THREE.MathUtils.mapLinear(distJogador, 0, 40, 1.5, 0.2);
+                        const opacidadeFinal = Math.min(1.0, calcOpacidade); // Trava no máximo 1 (100% Branco)
+                        
+                        const overlay = document.getElementById('flash-overlay');
+                        overlay.style.transition = 'opacity 0.05s';
+                        overlay.style.opacity = opacidadeFinal;
+                        
+                        // Tempo variando de 2 a 5 segundos de tela branca
+                        const tempoCego = 2000 + (3000 * opacidadeFinal); 
+
+                        setTimeout(() => {
+                            overlay.style.transition = `opacity ${tempoCego/1000}s ease-out`;
+                            overlay.style.opacity = '0';
+                        }, 100);
+                    }
+                }
+            }
+
+            // --- 2. CEGAR OS INIMIGOS (NOVO) ---
+            enemies.forEach(enemy => {
+                const distEnemy = enemy.position.distanceTo(posDetonacao);
+                if (distEnemy > 40) return;
+
+                const vecToFlash = posDetonacao.clone().sub(enemy.position).normalize();
+                // O vetor "frente" do inimigo
+                const enemyLookDir = enemy.getWorldDirection(new THREE.Vector3());
+                
+                const dotEnemy = enemyLookDir.dot(vecToFlash);
+                if (dotEnemy < 0) return; // Inimigo estava de costas para a granada
+
+                // Checa se há obstáculos entre o inimigo e a granada
+                raycaster.set(enemy.position, vecToFlash);
+                const barriersEnemy = raycaster.intersectObjects(obstacles);
+                if (barriersEnemy.length > 0 && barriersEnemy[0].distance < distEnemy) return; // Atrás de caixa
+
+                // Se passou tudo, o inimigo fica cego
+                const intensidadeIA = THREE.MathUtils.mapLinear(dotEnemy, 0, 1, 0.5, 1) * THREE.MathUtils.mapLinear(distEnemy, 0, 40, 1, 0.2);
+                
+                // IA cega de 2 a 4.5 segundos
+                enemy.userData.blindUntil = performance.now() + (2000 + 2500 * intensidadeIA);
+            });
+        }
+
+        function useSmoke() {
+            if (cooldowns.smoke.active || !isAlive) return;
+            activateCooldown('ab-smoke', cooldowns.smoke);
+
+            const dir = camera.getWorldDirection(new THREE.Vector3());
+            const targetPos = camera.position.clone().addScaledVector(dir, 20);
+            
+            raycaster.set(new THREE.Vector3(targetPos.x, 50, targetPos.z), new THREE.Vector3(0,-1,0));
+            const hits = raycaster.intersectObjects(obstacles);
+            if(hits.length > 0) targetPos.y = hits[0].point.y + 3;
+
+            const smokeObj = new THREE.Mesh(
+                new THREE.SphereGeometry(6, 16, 16),
+                new THREE.MeshStandardMaterial({ color: 0x333333, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+            );
+            smokeObj.position.copy(targetPos);
+            smokeObj.scale.setScalar(0.1);
+            scene.add(smokeObj);
+            
+            // Adiciona a smoke no Array para a IA reconhecer
+            activeSmokes.push(smokeObj);
+            
+            let prog = 0;
+            const grow = setInterval(() => {
+                prog += 0.05;
+                smokeObj.scale.setScalar(THREE.MathUtils.lerp(0.1, 1, prog));
+                smokeObj.material.opacity = THREE.MathUtils.lerp(0, 0.95, prog);
+                if (prog >= 1) clearInterval(grow);
+            }, 20);
+            
+            setTimeout(() => {
+                let p2 = 0;
+                const fade = setInterval(() => {
+                    p2 += 0.02;
+                    smokeObj.material.opacity = THREE.MathUtils.lerp(0.95, 0, p2);
+                    if (p2 >= 1) { 
+                        clearInterval(fade); 
+                        scene.remove(smokeObj); 
+                        smokeObj.geometry.dispose(); 
+                        smokeObj.material.dispose();
+                        
+                        // Remove a smoke do Array quando ela some
+                        const idx = activeSmokes.indexOf(smokeObj);
+                        if(idx > -1) activeSmokes.splice(idx, 1);
+                    }
+                }, 20);
+            }, 10000);
+        }
+
+        // --- INPUTS ---
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        let playerVelocityY = 0; 
+        let prevTime = performance.now();
+
+        document.getElementById('btn-iniciar').addEventListener('click', () => controls.lock());
+        document.getElementById('btn-restart').addEventListener('click', () => location.reload());
+        controls.addEventListener('lock', () => { if(isAlive) document.getElementById('menu').style.display = 'none'; });
+        controls.addEventListener('unlock', () => { if(isAlive) document.getElementById('menu').style.display = 'flex'; });
+
+        document.addEventListener('keydown', (e) => {
+            if (!isAlive || !controls.isLocked) return;
+            switch (e.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'KeyR': reload(); break;
+                case 'KeyE': useDash(); break;
+                case 'KeyQ': useFlashbang(); break;
+                case 'KeyC': useSmoke(); break;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        });
+        window.addEventListener('mousedown', (e) => { if (e.button === 0) playerShoot(); });
+
+        // --- LOOP PRINCIPAL ---
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isAlive) return;
+
+            const time = performance.now();
+            const delta = Math.min((time - prevTime) / 1000, 0.1); 
+
+            if (controls.isLocked === true) {
+                const oldPos = camera.position.clone();
+
+                // Movimento
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                const walkSpeed = 40.0;
+                if (moveForward || moveBackward) velocity.z -= direction.z * walkSpeed * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * walkSpeed * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+
+                // Colisão Horizontal
+                const moveVec = new THREE.Vector3(camera.position.x - oldPos.x, 0, camera.position.z - oldPos.z);
+                const moveDist = moveVec.length();
+                if (moveDist > 0) {
+                    const moveDir = moveVec.normalize();
+                    const origin = oldPos.clone();
+                    origin.y -= 1.0; 
+                    
+                    raycaster.set(origin, moveDir);
+                    const hits = raycaster.intersectObjects(obstacles);
+                    if (hits.length > 0 && hits[0].distance < moveDist + 0.3) {
+                        camera.position.x = oldPos.x;
+                        camera.position.z = oldPos.z;
+                    }
+                }
+
+                // Gravidade e Rampas
+                playerVelocityY -= 40.0 * delta; 
+                camera.position.y += playerVelocityY * delta;
+
+                raycaster.set(camera.position, new THREE.Vector3(0, -1, 0));
+                const hitsDown = raycaster.intersectObjects(obstacles);
+                const alturaOlhos = 2.0;
+
+                if (hitsDown.length > 0) {
+                    if (hitsDown[0].distance < alturaOlhos) {
+                        camera.position.y = hitsDown[0].point.y + alturaOlhos;
+                        playerVelocityY = 0; 
+                    }
+                }
+
+                // --- 4. INTELIGÊNCIA DOS INIMIGOS (ATUALIZADA) ---
+                const inimigosParaAtirar = [];
+                enemies.forEach(enemy => {
+                    // IA atordoada pela flash
+                    if (time < enemy.userData.blindUntil) {
+                        // Se cego, ele não vira a câmera e não entra na lista de tiros
+                        return; 
+                    }
+
+                    const targetPos = camera.position.clone();
+                    targetPos.y = enemy.position.y; 
+                    enemy.lookAt(targetPos);
+                    
+                    if (time > enemy.userData.lastShot) {
+                        // LÓGICA DE SMOKE: Checa visão antes de atirar
+                        const vecParaJogador = camera.position.clone().sub(enemy.position).normalize();
+                        const distParaJogador = enemy.position.distanceTo(camera.position);
+                        
+                        raycaster.set(enemy.position, vecParaJogador);
+                        
+                        // Checa interseção apenas com as smokes ativas
+                        const hitSmokes = raycaster.intersectObjects(activeSmokes);
+                        
+                        // Se bateu na smoke E a fumaça está na frente do jogador, cancela tiro
+                        if (hitSmokes.length > 0 && hitSmokes[0].distance < distParaJogador) {
+                            // Está bloqueado! Tenta atirar de novo daqui 1 segundo (não atira agora)
+                            enemy.userData.lastShot = time + 1000;
+                            return;
+                        }
+
+                        // Sem fumaça ou flash, atira!
+                        inimigosParaAtirar.push(enemy);
+                        enemy.userData.lastShot = time + 1500 + Math.random() * 2500;
+                    }
+                });
+                inimigosParaAtirar.forEach(e => shootEnemyProjectile(e, camera.position));
+
+                // 5. Projéteis Inimigos
+                for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+                    const p = enemyProjectiles[i];
+                    p.position.addScaledVector(p.userData.direction, p.userData.speed * delta);
+                    p.userData.life -= delta;
+
+                    if (p.position.distanceTo(camera.position) < 1.0) {
+                        takeDamage(15); scene.remove(p); enemyProjectiles.splice(i, 1); continue;
+                    }
+                    
+                    raycaster.set(p.position, p.userData.direction);
+                    const hitObj = raycaster.intersectObjects(obstacles);
+                    if (hitObj.length > 0 && hitObj[0].distance < 0.5) {
+                        scene.remove(p); enemyProjectiles.splice(i, 1); continue;
+                    }
+
+                    if (p.userData.life <= 0) { scene.remove(p); enemyProjectiles.splice(i, 1); }
+                }
+            }
+
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateHUD();
+        animate();
+    </script>
+</body>
+</html>
