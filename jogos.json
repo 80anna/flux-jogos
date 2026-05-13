@@ -52,5 +52,11 @@
         "autor": "Zé",
         "arquivo": "eurotruck.html",
         "imagem": "jogos/assets/eurotruck.png"
+    },
+    {
+        "nome": "CLT Clicker",
+        "autor": "Zé",
+        "arquivo": "cltclicker.html",
+        "imagem": "jogos/assets/cltclicker.png"
     }
 ]
