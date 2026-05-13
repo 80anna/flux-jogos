@@ -58,5 +58,11 @@
         "autor": "Zé",
         "arquivo": "cltclicker.html",
         "imagem": "jogos/assets/cltclicker.png"
+    },
+    {
+        "nome": "Homem-aranha 3",
+        "autor": "Gustavo",
+        "arquivo": "homemaranha3.html",
+        "imagem": "jogos/assets/homemaranha3.png"
     }
 ]
