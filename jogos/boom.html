@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BoomGhost</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+        .hud-box {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border: 2px solid #555;
+            border-radius: 8px;
+            min-width: 200px;
+        }
+        .bar-container {
+            width: 100%;
+            height: 20px;
+            background: #333;
+            margin-top: 5px;
+            border: 1px solid #fff;
+        }
+        .bar-fill {
+            height: 100%;
+            transition: width 0.1s;
+        }
+        #health-fill { background: #ff3333; width: 100%; }
+        #laser-fill { background: #33ccff; width: 100%; }
+        #score-display {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 30px;
+            pointer-events: none;
+        }
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0,0,0,0.9);
+            padding: 40px;
+            border: 2px solid red;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="screen" width="320" height="240"></canvas>
+    
+    <div id="crosshair">+</div>
+    
+    <div id="ui">
+        <div class="hud-box">
+            <div>Vida: <span id="hp-text">100</span>%</div>
+            <div class="bar-container"><div id="health-fill"></div></div>
+        </div>
+        
+        <div class="hud-box" style="text-align: center;">
+            <div>Inimigos Abatidos</div>
+            <div id="score-display">0</div>
+        </div>
+        
+        <div class="hud-box">
+            <div>Carga do Laser: <span id="laser-text">100</span>%</div>
+            <div class="bar-container"><div id="laser-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="game-over">
+        <h1 style="color: red;">VOCÊ MORREU</h1>
+        <p>Inimigos abatidos: <span id="final-score">0</span></p>
+        <p>Pressione F5 para recomeçar.</p>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('screen');
+    const ctx = canvas.getContext('2d');
+    
+    const healthFill = document.getElementById('health-fill');
+    const hpText = document.getElementById('hp-text');
+    const laserFill = document.getElementById('laser-fill');
+    const laserText = document.getElementById('laser-text');
+    const scoreDisplay = document.getElementById('score-display');
+    const gameOverScreen = document.getElementById('game-over');
+    const finalScore = document.getElementById('final-score');
+
+    const SCREEN_W = canvas.width;
+    const SCREEN_H = canvas.height;
+    const FOV = Math.PI / 3; 
+    
+    const cores = {
+        1: '#44cc44', // verde
+        2: '#ff0000', // vermelho
+        3: '#ffaa00', // laranja
+        4: '#00ffff', // ciano
+        5: '#ffffff'  // branco
+    };
+
+    const map = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,0,1,1,0,0,0,0,1,1,1,0,0,1],
+        [1,0,0,1,0,0,0,0,0,0,0,1,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+        [1,1,0,0,0,1,1,1,1,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,1,0,0,1,1,1,1],
+        [1,0,1,1,1,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,1,1,1,0,0,0,0,1],
+        [1,1,1,0,0,0,0,1,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    // Matriz do Inimigo (10x10)
+    const spriteFantasminha = [
+        [0,0,0,1,1,1,1,0,0,0],
+        [0,0,1,1,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,1,1,0],
+        [1,1,5,5,1,1,5,5,1,1],
+        [1,1,5,2,1,1,2,5,1,1],
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,4,1,1,1,1,1,4,1,1],
+        [1,1,1,1,1,1,1,1,1,1],
+        [0,1,1,0,1,1,0,1,1,0],
+        [1,0,1,0,1,1,0,1,0,1]
+    ];
+
+    // Matriz da Bateria (8x8)
+    const spriteBateria = [
+        [0,0,3,3,3,3,0,0],
+        [0,3,4,4,4,4,3,0],
+        [3,4,4,4,4,4,4,3],
+        [3,4,4,5,5,4,4,3],
+        [3,4,4,5,5,4,4,3],
+        [3,4,4,4,4,4,4,3],
+        [0,3,4,4,4,4,3,0],
+        [0,0,3,3,3,3,0,0]
+    ];
+
+    const player = {
+        x: 2.5, y: 2.5, dir: 0,
+        speed: 0.05, rotSpeed: 0.04,
+        health: 100, laser: 100, score: 0
+    };
+
+    // Variável para progressão de dificuldade
+    let enemySpeedBonus = 0; 
+
+    // Inimigos
+    let enemies = [];
+    function spawnEnemy() {
+        let spawned = false;
+        while(!spawned) {
+            let ex = Math.floor(Math.random() * 13) + 1;
+            let ey = Math.floor(Math.random() * 13) + 1;
+            if (map[ey][ex] === 0 && Math.abs(ex - player.x) > 2) {
+                let randomSpeed = 0.005 + Math.random() * 0.008 + enemySpeedBonus;
+                enemies.push({ x: ex + 0.5, y: ey + 0.5, hp: 100, speed: randomSpeed, id: Math.random() });
+                spawned = true;
+            }
+        }
+    }
+    
+    // Baterias (Itens)
+    let pickups = [];
+    function spawnPickup() {
+        let spawned = false;
+        while(!spawned) {
+            let px = Math.floor(Math.random() * 13) + 1;
+            let py = Math.floor(Math.random() * 13) + 1;
+            if (map[py][px] === 0) {
+                pickups.push({ x: px + 0.5, y: py + 0.5, id: Math.random() });
+                spawned = true;
+            }
+        }
+    }
+
+    // Inicialização
+    for(let i=0; i<5; i++) spawnEnemy();
+    for(let i=0; i<3; i++) spawnPickup(); 
+
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    let zBuffer = new Array(SCREEN_W).fill(0);
+    let isShooting = 0; 
+    let isGameOver = false;
+
+    function gameLoop() {
+        if (isGameOver) return;
+        update();
+        render();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+        let moveStep = 0;
+        if (keys['KeyW']) moveStep = player.speed;
+        if (keys['KeyS']) moveStep = -player.speed;
+        
+        if (keys['ArrowLeft'] || keys['KeyA']) player.dir -= player.rotSpeed;
+        if (keys['ArrowRight'] || keys['KeyD']) player.dir += player.rotSpeed;
+
+        if (moveStep !== 0) {
+            let newX = player.x + Math.cos(player.dir) * moveStep;
+            let newY = player.y + Math.sin(player.dir) * moveStep;
+            
+            if (map[Math.floor(player.y)][Math.floor(newX)] === 0) player.x = newX;
+            if (map[Math.floor(newY)][Math.floor(player.x)] === 0) player.y = newY;
+        }
+
+        // Lógica de Atirar
+        if (keys['Space']) {
+            if (player.laser >= 5 && isShooting === 0) {
+                isShooting = 5; 
+                player.laser -= 5; 
+                checkLaserHit();
+            }
+        }
+        if (isShooting > 0) isShooting--;
+
+        // Atualiza Inimigos
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            let e = enemies[i];
+            let dx = player.x - e.x;
+            let dy = player.y - e.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist > 0.4) {
+                e.x += (dx / dist) * e.speed;
+                e.y += (dy / dist) * e.speed;
+            } else {
+                player.health -= 0.5; // Dano ao jogador se o inimigo encostar
+            }
+
+            if (e.hp <= 0) {
+                enemies.splice(i, 1);
+                player.score++;
+                spawnEnemy(); 
+                
+                // NOVO SISTEMA DE DIFICULDADE
+                if (player.score % 10 === 0) {
+                    enemySpeedBonus += 0.0015; // Acelera os próximos a nascer
+                    enemies.forEach(en => en.speed += 0.0015); // Acelera os que já estão na tela
+                    spawnEnemy(); // Nasce um inimigo extra a cada 10 abates
+                }
+            }
+        }
+
+        // Lógica de Coleta de Baterias
+        for (let i = pickups.length - 1; i >= 0; i--) {
+            let p = pickups[i];
+            let dist = Math.sqrt(Math.pow(player.x - p.x, 2) + Math.pow(player.y - p.y, 2));
+            
+            // Se chegou perto (coletou)
+            if (dist < 0.5) {
+                player.laser = Math.min(100, player.laser + 30);
+                pickups.splice(i, 1);
+                spawnPickup(); // Nasce uma nova bateria no mapa
+            }
+        }
+
+        updateUI();
+
+        if (player.health <= 0) {
+            isGameOver = true;
+            gameOverScreen.style.display = 'block';
+            finalScore.innerText = player.score;
+        }
+    }
+
+    function checkLaserHit() {
+        let hitEnemy = null;
+        let closestDist = Infinity;
+
+        enemies.forEach(e => {
+            let dx = e.x - player.x;
+            let dy = e.y - player.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            let angle = Math.atan2(dy, dx) - player.dir;
+            
+            while(angle < -Math.PI) angle += 2*Math.PI;
+            while(angle > Math.PI) angle -= 2*Math.PI;
+
+            if (Math.abs(angle) < 0.15) {
+                let screenX = Math.floor((0.5 * (angle / (FOV/2)) + 0.5) * SCREEN_W);
+                if (dist < zBuffer[screenX] && dist < closestDist) {
+                    hitEnemy = e;
+                    closestDist = dist;
+                }
+            }
+        });
+
+        if (hitEnemy) {
+            hitEnemy.hp -= 35; 
+        }
+    }
+
+    function render() {
+        // Teto e Chão
+        ctx.fillStyle = '#222'; 
+        ctx.fillRect(0, 0, SCREEN_W, SCREEN_H / 2);
+        ctx.fillStyle = '#333'; 
+        ctx.fillRect(0, SCREEN_H / 2, SCREEN_W, SCREEN_H / 2);
+
+        // Paredes (Raycasting)
+        for (let x = 0; x < SCREEN_W; x++) {
+            let rayAngle = (player.dir - FOV / 2.0) + (x / SCREEN_W) * FOV;
+            let eyeX = Math.cos(rayAngle);
+            let eyeY = Math.sin(rayAngle);
+            let dist = 0.0;
+            let hit = false;
+            let shade = 1;
+
+            while (!hit && dist < 20) {
+                dist += 0.05;
+                let testX = Math.floor(player.x + eyeX * dist);
+                let testY = Math.floor(player.y + eyeY * dist);
+
+                if (testX < 0 || testX >= map[0].length || testY < 0 || testY >= map.length) {
+                    hit = true;
+                    dist = 20;
+                } else if (map[testY][testX] > 0) {
+                    hit = true;
+                    let blockMidX = testX + 0.5;
+                    let blockMidY = testY + 0.5;
+                    let testAngle = Math.atan2(player.y - blockMidY, player.x - blockMidX);
+                    if (Math.abs(Math.cos(testAngle)) > Math.abs(Math.sin(testAngle))) {
+                        shade = 0.7; 
+                    }
+                }
+            }
+
+            let correctedDist = dist * Math.cos(rayAngle - player.dir);
+            zBuffer[x] = correctedDist; 
+
+            let wallHeight = SCREEN_H / correctedDist;
+            let wallTop = (SCREEN_H / 2) - (wallHeight / 2);
+
+            let r = Math.floor(50 * shade);
+            let g = Math.floor(100 * shade);
+            let b = Math.floor(150 * shade);
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(x, wallTop, 1, wallHeight);
+        }
+
+        // Junta Inimigos e Itens em uma lista única
+        let entities = [];
+        enemies.forEach(e => entities.push({...e, isEnemy: true}));
+        pickups.forEach(p => entities.push({...p, isEnemy: false}));
+
+        entities.sort((a,b) => {
+            let d1 = Math.pow(player.x - a.x, 2) + Math.pow(player.y - a.y, 2);
+            let d2 = Math.pow(player.x - b.x, 2) + Math.pow(player.y - b.y, 2);
+            return d2 - d1; 
+        });
+
+        // Desenhar Entidades (Inimigos e Baterias)
+        entities.forEach(ent => {
+            let dx = ent.x - player.x;
+            let dy = ent.y - player.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            let angle = Math.atan2(dy, dx) - player.dir;
+            
+            while(angle < -Math.PI) angle += 2*Math.PI;
+            while(angle > Math.PI) angle -= 2*Math.PI;
+
+            if (Math.abs(angle) < FOV / 1.5) {
+                let screenX = (0.5 * (angle / (FOV/2)) + 0.5) * SCREEN_W;
+                
+                let sizeMod = ent.isEnemy ? 1 : 0.4;
+                let size = (SCREEN_H / dist) * sizeMod; 
+                
+                let startX = Math.floor(screenX - size / 2);
+                let endX = Math.floor(screenX + size / 2);
+
+                let bobbingSpeed = ent.isEnemy ? 200 : 100;
+                let bobbing = Math.sin((Date.now() / bobbingSpeed) + ent.id * 10) * (size * 0.1);
+                
+                let yOffset = ent.isEnemy ? 0 : (SCREEN_H / dist) * 0.3;
+
+                let sprite = ent.isEnemy ? spriteFantasminha : spriteBateria;
+                
+                // NOVO: Lê o tamanho exato da matriz para renderizar corretamente
+                let sWidth = sprite[0].length;
+                let sHeight = sprite.length;
+
+                for (let x = startX; x < endX; x++) {
+                    if (x >= 0 && x < SCREEN_W && dist < zBuffer[x]) {
+                        
+                        let texX = Math.floor(((x - startX) / size) * sWidth); 
+                        let pixelHeight = size / sHeight;
+                        
+                        for(let y = 0; y < sHeight; y++) {
+                            let pixelType = sprite[y][texX];
+                            
+                            if (pixelType > 0) {
+                                let drawY = (SCREEN_H / 2) - (size / 2) + (y * pixelHeight) + bobbing + yOffset;
+                                
+                                ctx.fillStyle = cores[pixelType];
+
+                                ctx.fillRect(x, drawY, 1, pixelHeight + 1); 
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (isShooting > 0) {
+            ctx.fillStyle = `rgba(0, 255, 255, ${isShooting / 5})`; 
+            ctx.beginPath();
+            ctx.moveTo(SCREEN_W / 2 - 2, SCREEN_H / 2);
+            ctx.lineTo(SCREEN_W / 2 + 2, SCREEN_H / 2);
+            ctx.lineTo(SCREEN_W / 2 + 30, SCREEN_H);
+            ctx.lineTo(SCREEN_W / 2 - 30, SCREEN_H);
+            ctx.fill();
+            
+            ctx.fillStyle = `rgba(0, 255, 255, 0.2)`;
+            ctx.fillRect(0,0, SCREEN_W, SCREEN_H);
+        }
+    }
+
+    function updateUI() {
+        healthFill.style.width = Math.max(0, player.health) + '%';
+        hpText.innerText = Math.floor(Math.max(0, player.health));
+        
+        laserFill.style.width = Math.max(0, player.laser) + '%';
+        laserText.innerText = Math.floor(Math.max(0, player.laser));
+
+        scoreDisplay.innerText = player.score;
+        
+        if(player.health < 30) healthFill.style.background = '#880000';
+        else healthFill.style.background = '#ff3333';
+
+        if(player.laser < 5) laserFill.style.background = '#333'; 
+        else laserFill.style.background = '#33ccff';
+    }
+
+    gameLoop();
+
+</script>
+</body>
+</html>
