@@ -3,18 +3,18 @@
         "nome": "Pixel Fighter",
         "autor": "Anna",
         "arquivo": "pixelfighter.html",
-        "imagem": "jogos/assets/pixelfighter.png"
+        "imagem": "/flux-jogos/jogos/assets/pixelfighter.png"
     },
     {
         "nome": "Point & Click",
         "autor": "Anna",
         "arquivo": "pointclick.html",
-        "imagem": "/jogos/assets/pointclick.png"
+        "imagem": "/flux-jogos/jogos/assets/pointclick.png"
     },
     {
         "nome": "Agar.io",
         "autor": "Thaty",
         "arquivo": "agario.html",
-        "imagem": "/jogos/assets/agario.png"
+        "imagem": "/flux-jogos/jogos/assets/agario.png"
     }
 ]
