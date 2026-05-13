@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aventuras nas Alturas - Ultimate Slinger</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Courier New', Courier, monospace; user-select: none;}
+        canvas { display: block; }
+        
+        #hud {
+            position: absolute; top: 20px; left: 20px; 
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 15px 25px; border-radius: 15px;
+            color: #fff; font-size: 24px; font-weight: bold; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); z-index: 10;
+        }
+
+        #symbioteAlert {
+            display: none; margin-top: 10px; font-size: 18px; color: #9b59b6;
+            text-shadow: 0 0 10px #8e44ad, 1px 1px 2px #000;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.7; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1.02); }
+        }
+        
+        #goblinHpContainer {
+            position: absolute; top: 25px; right: 20px; width: 300px; 
+            background: rgba(0, 0, 0, 0.5); border: 2px solid #fff; 
+            border-radius: 15px; display: none; overflow: hidden;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.5); padding: 2px;
+        }
+        #goblinHpFill { 
+            width: 100%; height: 18px; 
+            background: linear-gradient(90deg, #27ae60, #2ecc71); 
+            border-radius: 10px; transition: width 0.15s ease-out; 
+        }
+        
+        #gameOverScreen {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(44,62,80,0.9) 0%, rgba(0,0,0,0.95) 100%);
+            z-index: 100; flex-direction: column; align-items: center; justify-content: center; color: white;
+        }
+        #gameOverScreen h1 { font-size: 5rem; color: #e74c3c; margin-bottom: 10px; text-shadow: 4px 4px 0 #c0392b;}
+        #gameOverScreen p { font-size: 1.5rem; color: #ecf0f1; margin-bottom: 30px; }
+        #gameOverScreen button { 
+            font-size: 1.5rem; padding: 15px 40px; cursor: pointer; 
+            background: linear-gradient(135deg, #3498db, #2980b9); color: white; border: none; 
+            border-radius: 8px; font-weight: bold; text-transform: uppercase;
+        }
+        
+        #instructions {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.8); font-size: 16px; 
+            text-shadow: 1px 1px 2px #000; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        DISTÂNCIA: <span id="scoreEl">0</span>m
+        <div id="symbioteAlert">SIMBIONTE ADQUIRIDO - PRESSIONE ENTER!</div>
+    </div>
+    
+    <div id="goblinHpContainer"><div id="goblinHpFill"></div></div>
+
+    <div id="instructions">
+        [MOUSE] Lançar Teia | [A/D] Impulso | [W/S] Rapel | [ESPAÇO] Atirar | [ENTER] Transformar | [SHIFT] Escalar
+    </div>
+
+    <div id="gameOverScreen">
+        <h1>VOCÊ CAIU!</h1>
+        <p>Distância alcançada: <span id="finalScore">0</span>m</p>
+        <button onclick="location.reload()">Tentar Novamente</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const scoreEl = document.getElementById('scoreEl');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+    const goblinHpContainer = document.getElementById('goblinHpContainer');
+    const goblinHpFill = document.getElementById('goblinHpFill');
+    const symbioteAlert = document.getElementById('symbioteAlert');
+
+    let isGameOver = false;
+    let score = 0;
+    let cameraX = 0; 
+
+    // ADICIONADO SHIFT NOS CONTROLES
+    const keys = { a: false, d: false, w: false, s: false, shift: false };
+    let mouseWorldX = 0; 
+    let mouseWorldY = 0;
+    
+    window.addEventListener('keydown', (e) => { 
+        if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; 
+        if(e.key === 'Shift') keys.shift = true;
+        if(e.code === 'Space') { e.preventDefault(); player.shootWeb(); }
+        if(e.code === 'Enter') { e.preventDefault(); player.transformVenom(); }
+    });
+    window.addEventListener('keyup', (e) => { 
+        if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; 
+        if(e.key === 'Shift') keys.shift = false;
+    });
+    window.addEventListener('mousemove', (e) => { mouseWorldX = e.clientX + cameraX; mouseWorldY = e.clientY; });
+
+    // ==========================================
+    // SISTEMA DE PARTÍCULAS
+    // ==========================================
+    const particles = [];
+    class Particle {
+        constructor(x, y, color, speedModifier = 1) {
+            this.x = x; this.y = y;
+            this.vx = (Math.random() - 0.5) * 15 * speedModifier;
+            this.vy = (Math.random() - 0.5) * 15 * speedModifier;
+            this.life = 1.0;
+            this.decay = Math.random() * 0.05 + 0.02;
+            this.color = color;
+            this.size = Math.random() * 4 + 2;
+        }
+        update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; this.draw(); }
+        draw() {
+            ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+    function spawnParticles(x, y, color, count, speed = 1) {
+        for(let i=0; i<count; i++) particles.push(new Particle(x, y, color, speed));
+    }
+
+    // ==========================================
+    // CÉU, NUVENS E PRÉDIOS
+    // ==========================================
+    const clouds = [];
+    for(let i=0; i<20; i++) {
+        clouds.push({ x: Math.random() * 10000, y: Math.random() * (canvas.height / 2), size: Math.random() * 60 + 30 });
+    }
+
+    function drawSky() {
+        let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, player.isVenom ? '#1a1a2e' : '#2980b9');
+        grad.addColorStop(1, player.isVenom ? '#16213e' : '#6dd5ed');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = player.isVenom ? '#e74c3c' : '#f1c40f'; 
+        ctx.shadowBlur = 50; ctx.shadowColor = ctx.fillStyle;
+        ctx.beginPath(); ctx.arc(canvas.width - 200, 150, 60, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+        ctx.fillStyle = player.isVenom ? 'rgba(50, 50, 50, 0.7)' : 'rgba(255, 255, 255, 0.7)';
+        for(let c of clouds) {
+            let drawX = (c.x - cameraX * 0.15) % (canvas.width + 200);
+            if(drawX < -200) drawX += canvas.width + 400; 
+            ctx.beginPath(); ctx.arc(drawX, c.y, c.size, 0, Math.PI*2);
+            ctx.arc(drawX + c.size*0.8, c.y - c.size*0.3, c.size*0.8, 0, Math.PI*2);
+            ctx.arc(drawX + c.size*1.2, c.y + c.size*0.2, c.size*0.6, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    const buildings = [];
+    const symbioteFlasks = []; 
+    let nextBuildingX = -200; 
+
+    function generateBuildings() {
+        while (nextBuildingX < cameraX + canvas.width + 1200) {
+            let width = Math.random() * 250 + 150; 
+            let height = Math.random() * 450 + 250; 
+            let gap = Math.random() * 250 + 100; 
+            let baseColor = ['#2c3e50', '#34495e', '#1a252f'][Math.floor(Math.random() * 3)];
+            
+            buildings.push({ x: nextBuildingX, y: canvas.height - height, w: width, h: height, color: baseColor });
+            
+            if(Math.random() > 0.90 && !player.hasSymbiote && !player.isVenom) {
+                symbioteFlasks.push({
+                    x: nextBuildingX + width/2,
+                    y: canvas.height - height - 20,
+                    active: true,
+                    hover: Math.random() * 100
+                });
+            }
+
+            nextBuildingX += width + gap;
+        }
+        while (buildings.length > 0 && buildings[0].x + buildings[0].w < cameraX - 500) {
+            buildings.shift();
+        }
+        while (symbioteFlasks.length > 0 && symbioteFlasks[0].x < cameraX - 500) {
+            symbioteFlasks.shift();
+        }
+    }
+
+    function seededRandom(x, y) { return Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1; }
+
+    // ==========================================
+    // SISTEMA DE PROJÉTEIS
+    // ==========================================
+    const projectiles = [];
+    class WebProjectile {
+        constructor(x, y, vx, vy, isVenom) {
+            this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.life = 60;
+            this.isVenom = isVenom;
+            this.damage = isVenom ? 30 : 10;
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy; this.life--;
+            spawnParticles(this.x, this.y, this.isVenom ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.5)', 1, 0.2); 
+            this.draw();
+        }
+        draw() {
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.isVenom ? 10 : 6, 0, Math.PI * 2); 
+            ctx.fillStyle = this.isVenom ? '#000' : '#fff'; 
+            ctx.shadowBlur = 10; ctx.shadowColor = this.isVenom ? '#8e44ad' : '#fff'; ctx.fill(); ctx.shadowBlur = 0;
+        }
+    }
+
+    // ==========================================
+    // DUENDE VERDE
+    // ==========================================
+    class Goblin {
+        constructor() {
+            this.x = 1000; this.y = 200; this.vx = 0; this.vy = 0;
+            this.hp = 100; this.maxHp = 100; this.isDead = false;
+            this.hoverOffset = Math.random() * 1000;
+        }
+        takeDamage(amount) {
+            if (this.isDead) return;
+            this.hp -= amount;
+            goblinHpFill.style.width = (this.hp / this.maxHp) * 100 + '%';
+            spawnParticles(this.x, this.y, '#2ecc71', 15); 
+            if (this.hp <= 0) {
+                this.isDead = true; this.vy = -12; this.vx = player.vx; 
+                goblinHpContainer.style.display = 'none';
+                spawnParticles(this.x, this.y, '#e74c3c', 40, 2); 
+            }
+        }
+        update() {
+            if (this.isDead) {
+                this.vy += 0.5; this.x += this.vx; this.y += this.vy;
+                if(Math.random() > 0.5) spawnParticles(this.x, this.y, '#555', 2, 0.5); 
+                if (this.y > canvas.height + 200) this.respawn();
+            } else {
+                let distAhead = player.isVenom ? 700 : 500;
+                let targetX = player.x + distAhead; 
+                let targetY = (canvas.height / 3) + Math.sin((Date.now() + this.hoverOffset) / 400) * 180;
+                this.x += (targetX - this.x) * 0.04; this.y += (targetY - this.y) * 0.06;
+                goblinHpContainer.style.display = 'block';
+            }
+            this.draw();
+        }
+        respawn() {
+            this.hp = this.maxHp; this.isDead = false;
+            this.x = player.x + 1500; this.y = -100;
+            goblinHpFill.style.width = '100%';
+        }
+        draw() {
+            ctx.save(); ctx.translate(this.x, this.y);
+            if (this.isDead) ctx.rotate(this.vy * 0.1); 
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+            ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.moveTo(-40, 20); ctx.lineTo(40, 20); ctx.lineTo(60, 5); ctx.lineTo(-20, 5); ctx.fill();
+            if (!this.isDead) {
+                ctx.fillStyle = '#e67e22'; ctx.shadowBlur = 20; ctx.shadowColor = '#e67e22';
+                ctx.beginPath(); ctx.arc(-30, 25, 8 + Math.random() * 5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+            }
+            ctx.fillStyle = '#8e44ad'; ctx.fillRect(-10, -20, 20, 30);
+            ctx.fillStyle = '#27ae60'; ctx.fillRect(-15, -15, 5, 20); ctx.fillRect(10, -15, 5, 20); ctx.fillRect(-8, 10, 6, 10); ctx.fillRect(2, 10, 6, 10);
+            ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(0, -25, 10, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.moveTo(-10, -30); ctx.lineTo(10, -30); ctx.lineTo(-20, -50); ctx.fill();
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(-5, -28, 4, 3); ctx.fillRect(1, -28, 4, 3);
+            ctx.restore();
+        }
+    }
+
+    const goblin = new Goblin();
+
+    // ==========================================
+    // FÍSICA VERLET E JOGADOR
+    // ==========================================
+    class Point { constructor(x, y) { this.x = x; this.y = y; this.oldX = x; this.oldY = y; } }
+    class Stick {
+        constructor(p1, p2, len) { this.p1 = p1; this.p2 = p2; this.len = len; }
+        update() {
+            let dx = this.p2.x - this.p1.x; let dy = this.p2.y - this.p1.y;
+            let dist = Math.hypot(dx, dy); let diff = this.len - dist; let percent = diff / dist / 2;
+            let offsetX = dx * percent; let offsetY = dy * percent;
+            this.p1.x -= offsetX; this.p1.y -= offsetY; this.p2.x += offsetX; this.p2.y += offsetY;
+        }
+    }
+
+    class Player {
+        constructor() {
+            this.x = 300; this.y = 100; this.vx = 12; this.vy = 0;
+            this.gravity = 0.5; this.friction = 0.995; 
+            
+            this.baseSwingForce = 0.4; this.baseClimbSpeed = 6; this.baseMaxWeb = 700;
+            this.swingForce = this.baseSwingForce; this.climbSpeed = this.baseClimbSpeed; this.MAX_WEB_LENGTH = this.baseMaxWeb; 
+            
+            this.isHooked = false; this.hookPoint = { x: 0, y: 0 }; this.ropeLength = 0; 
+            this.shootCooldown = 0; this.armLOverrideTimer = 0;
+
+            this.hasSymbiote = false; this.isVenom = false;
+            this.trail = [];
+
+            // ESTADOS DE ESCALADA
+            this.isClimbing = false;
+            this.climbWallX = 0;
+            this.climbSide = 'left';
+            this.climbB = null;
+            this.climbTick = 0; // Para a animação da aranha
+
+            this.points = []; this.sticks = [];
+            this.head = new Point(this.x, this.y - 15); this.chest = new Point(this.x, this.y); this.pelvis = new Point(this.x, this.y + 18);
+            this.armL = new Point(this.x - 10, this.y + 10); this.armR = new Point(this.x + 10, this.y + 10); 
+            this.legL = new Point(this.x - 10, this.y + 40); this.legR = new Point(this.x + 10, this.y + 40);
+            this.points.push(this.head, this.chest, this.pelvis, this.armL, this.armR, this.legL, this.legR);
+
+            this.sticks.push(new Stick(this.chest, this.head, 15)); this.sticks.push(new Stick(this.chest, this.pelvis, 18));
+            this.sticks.push(new Stick(this.chest, this.armL, 16)); this.sticks.push(new Stick(this.chest, this.armR, 16)); 
+            this.sticks.push(new Stick(this.pelvis, this.legL, 22)); this.sticks.push(new Stick(this.pelvis, this.legR, 22));
+            this.sticks.push(new Stick(this.pelvis, this.head, 33)); 
+        }
+
+        transformVenom() {
+            if(!this.hasSymbiote || this.isVenom) return;
+            this.isVenom = true; this.hasSymbiote = false; symbioteAlert.style.display = 'none';
+            this.swingForce = 0.9; this.climbSpeed = 12; this.MAX_WEB_LENGTH = 1100; 
+            spawnParticles(this.chest.x, this.chest.y, '#000', 100, 3); 
+        }
+
+        shootWeb() {
+            if (this.shootCooldown > 0) return; 
+            let dx = goblin.x - this.chest.x; let dy = goblin.y - this.chest.y; let dist = Math.hypot(dx, dy);
+            let projVx = (dx / dist) * 25; let projVy = (dy / dist) * 25;
+            projectiles.push(new WebProjectile(this.chest.x, this.chest.y, projVx, projVy, this.isVenom));
+            this.shootCooldown = this.isVenom ? 5 : 15; 
+            this.armLOverrideTimer = 10; 
+            this.isClimbing = false; // Atirar faz você soltar a parede!
+        }
+
+        draw() {
+            if (this.trail.length > 1 && !this.isClimbing) { // Oculta o rastro se estiver grudado na parede
+                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                for(let i = 1; i < this.trail.length; i++) {
+                    let pt = this.trail[i]; let prevPt = this.trail[i-1];
+                    ctx.beginPath(); ctx.moveTo(prevPt.x, prevPt.y); ctx.lineTo(pt.x, pt.y);
+                    let percent = i / this.trail.length;
+                    ctx.globalAlpha = percent * 0.5; ctx.lineWidth = percent * (this.isVenom ? 40 : 25);
+                    ctx.strokeStyle = this.isVenom ? '#000' : 'rgba(255, 255, 255, 0.5)'; ctx.stroke();
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            if (this.isHooked && !this.isClimbing) {
+                ctx.beginPath(); ctx.moveTo(this.armR.x, this.armR.y); ctx.lineTo(this.hookPoint.x, this.hookPoint.y);
+                ctx.strokeStyle = this.isVenom ? '#000' : "rgba(255, 255, 255, 0.9)"; ctx.lineWidth = this.isVenom ? 4 : 2;
+                ctx.shadowBlur = 8; ctx.shadowColor = this.isVenom ? '#8e44ad' : '#fff'; 
+                ctx.stroke(); ctx.shadowBlur = 0; 
+            }
+
+            let colorBase = this.isVenom ? '#111' : '#e74c3c';
+            let colorSec = this.isVenom ? '#000' : '#2980b9';
+            let baseThick = this.isVenom ? 16 : 8; 
+            let torsoThick = this.isVenom ? 24 : 12; 
+
+            ctx.lineCap = 'round';
+            for(let s of this.sticks) {
+                if (s.p1 === this.pelvis && s.p2 === this.head) continue;
+                ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y);
+                
+                if(s.p2 === this.legL) { ctx.strokeStyle = this.isVenom ? '#222' : '#1f618d'; ctx.lineWidth = baseThick; } 
+                else if (s.p2 === this.legR) { ctx.strokeStyle = colorSec; ctx.lineWidth = baseThick; } 
+                else if (s.p2 === this.armL) { ctx.strokeStyle = this.isVenom ? '#222' : '#c0392b'; ctx.lineWidth = baseThick; } 
+                else if (s.p2 === this.armR) { ctx.strokeStyle = colorBase; ctx.lineWidth = baseThick; } 
+                else if (s.p2 === this.pelvis) { ctx.strokeStyle = colorSec; ctx.lineWidth = torsoThick; } 
+                else { ctx.strokeStyle = colorBase; ctx.lineWidth = torsoThick; }
+                ctx.stroke();
+            }
+
+            ctx.beginPath(); ctx.arc(this.head.x, this.head.y, this.isVenom ? 12 : 9, 0, Math.PI*2); ctx.fillStyle = colorBase; ctx.fill();
+            
+            let angle = 0;
+            if (this.isClimbing) {
+                // Se escalando, a cabeça olha para a parede ou para cima
+                angle = this.climbSide === 'left' ? Math.PI : 0; 
+                if(keys.w) angle -= Math.PI/4 * (this.climbSide === 'left' ? -1 : 1);
+            } else {
+                let headVx = this.head.x - this.head.oldX; let headVy = this.head.y - this.head.oldY;
+                angle = Math.atan2(headVy, headVx);
+            }
+            
+            ctx.save(); ctx.translate(this.head.x, this.head.y); ctx.rotate(angle);
+            
+            if (this.isVenom) {
+                ctx.fillStyle = '#fff'; 
+                ctx.beginPath(); ctx.ellipse(5, -6, 5, 2, 0.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(5, 6, 5, 2, -0.5, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.fillStyle = '#fff'; 
+                ctx.beginPath(); ctx.arc(5, -4, 2.5, 0, Math.PI*2); ctx.arc(5, 4, 2.5, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+
+            if (this.isVenom) {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(this.chest.x, this.chest.y, 6, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        update() {
+            this.trail.push({x: this.chest.x, y: this.chest.y});
+            if (this.trail.length > 15) this.trail.shift();
+
+            if (this.shootCooldown > 0) this.shootCooldown--;
+
+            // ==================================
+            // LÓGICA DE DETECÇÃO DE PAREDE
+            // ==================================
+            if (keys.shift && !this.isClimbing) {
+                for (let b of buildings) {
+                    let nearLeft = Math.abs(this.chest.x - b.x) < 30;
+                    let nearRight = Math.abs(this.chest.x - (b.x + b.w)) < 30;
+                    let withinY = this.chest.y > b.y && this.chest.y < b.y + b.h;
+
+                    if ((nearLeft || nearRight) && withinY) {
+                        this.isClimbing = true;
+                        this.isHooked = false; // Solta a teia ao grudar
+                        this.climbWallX = nearLeft ? b.x : b.x + b.w;
+                        this.climbSide = nearLeft ? 'left' : 'right';
+                        this.climbB = b;
+                        break;
+                    }
+                }
+            }
+
+            // ==================================
+            // MOVIMENTAÇÃO
+            // ==================================
+            if (this.isClimbing) {
+                // SOLTAR A PAREDE
+                if (!keys.shift || this.y < this.climbB.y || this.y > this.climbB.y + this.climbB.h) {
+                    this.isClimbing = false;
+                    // Chute para longe da parede
+                    this.vx = this.climbSide === 'left' ? -5 : 5;
+                    this.vy = -5; 
+                } else {
+                    // MODO ESCALADA (OVERRIDE DA FÍSICA)
+                    this.vx = 0; 
+                    this.vy = 0;
+                    
+                    let climbSpd = this.isVenom ? 10 : 5;
+                    let moved = false;
+                    
+                    if (keys.w) { this.y -= climbSpd; moved = true; }
+                    if (keys.s) { this.y += climbSpd; moved = true; }
+
+                    if (moved) this.climbTick += 0.3; // Roda a animação de engatinhar
+
+                    // Trava o personagem na superfície
+                    this.x = this.climbSide === 'left' ? this.climbWallX - 15 : this.climbWallX + 15;
+                }
+            } else {
+                // MODO BALANÇO NORMAL (MACRO)
+                this.vy += this.gravity;
+                
+                if (this.isHooked) {
+                    if (keys.a) this.vx -= this.swingForce;
+                    if (keys.d) this.vx += this.swingForce;
+                    if (keys.w) this.ropeLength = Math.max(10, this.ropeLength - this.climbSpeed);
+                    if (keys.s) this.ropeLength = Math.min(this.MAX_WEB_LENGTH, this.ropeLength + this.climbSpeed);
+                }
+
+                this.vx *= this.friction; this.vy *= this.friction;
+                this.x += this.vx; this.y += this.vy;
+
+                // Corda Restrição
+                if (this.isHooked) {
+                    let dx = this.x - this.hookPoint.x; let dy = this.y - this.hookPoint.y; let dist = Math.hypot(dx, dy);
+                    if (dist > this.ropeLength) {
+                        let diff = dist - this.ropeLength; let nx = dx / dist; let ny = dy / dist; 
+                        this.x -= nx * diff; this.y -= ny * diff;
+                        let dotProduct = this.vx * nx + this.vy * ny;
+                        if (dotProduct > 0) { this.vx -= dotProduct * nx; this.vy -= dotProduct * ny; }
+                    }
+                }
+            }
+
+            // ==================================
+            // VERLET (MICRO)
+            // ==================================
+            for(let p of this.points) {
+                let pvx = (p.x - p.oldX) * 0.98; let pvy = (p.y - p.oldY) * 0.98;
+                p.oldX = p.x; p.oldY = p.y;
+                p.x += pvx; 
+                if(!this.isClimbing) p.y += pvy + this.gravity; 
+            }
+
+            this.chest.x = this.x; this.chest.y = this.y;
+
+            for(let i = 0; i < 5; i++) {
+                for(let s of this.sticks) s.update();
+                this.chest.x = this.x; this.chest.y = this.y;
+                
+                if (this.isClimbing) {
+                    // MÁGICA DA ANIMAÇÃO DO HOMEM-ARANHA NA PAREDE
+                    let offset = this.climbSide === 'left' ? 10 : -10;
+                    let wallX = this.climbWallX;
+                    
+                    this.head.x = this.chest.x + offset;
+                    this.head.y = this.chest.y - 15;
+
+                    let phase = this.climbTick;
+
+                    // Braços sobem e descem inversamente
+                    this.armL.x = wallX;
+                    this.armL.y = this.chest.y - 10 + Math.sin(phase) * 15;
+
+                    this.armR.x = wallX;
+                    this.armR.y = this.chest.y - 10 + Math.sin(phase + Math.PI) * 15;
+
+                    // Pernas dobram inversamente
+                    this.legL.x = wallX;
+                    this.legL.y = this.chest.y + 20 + Math.sin(phase + Math.PI) * 15;
+
+                    this.legR.x = wallX;
+                    this.legR.y = this.chest.y + 20 + Math.sin(phase) * 15;
+
+                    this.pelvis.x = this.chest.x + offset;
+                    this.pelvis.y = this.chest.y + 18;
+                } else {
+                    if (this.isHooked) {
+                        let dx = this.hookPoint.x - this.chest.x; let dy = this.hookPoint.y - this.chest.y; let dist = Math.hypot(dx, dy);
+                        this.armR.x = this.chest.x + (dx / dist) * 16; this.armR.y = this.chest.y + (dy / dist) * 16;
+                    }
+
+                    if (this.armLOverrideTimer > 0) {
+                        let dx = goblin.x - this.chest.x; let dy = goblin.y - this.chest.y; let dist = Math.hypot(dx, dy);
+                        this.armL.x = this.chest.x + (dx / dist) * 16; this.armL.y = this.chest.y + (dy / dist) * 16;
+                    }
+                }
+            }
+            
+            if (this.armLOverrideTimer > 0) this.armLOverrideTimer--;
+            if (this.y > canvas.height + 150) die();
+
+            if (this.isVenom && Math.random() > 0.7) spawnParticles(this.chest.x + (Math.random()-0.5)*20, this.chest.y + (Math.random()-0.5)*20, '#000', 1, 0.5);
+
+            this.draw();
+        }
+
+        grapple(targetX, targetY) {
+            if (this.isClimbing) {
+                // Se lançar teia na parede, ele pula da parede atirando a teia!
+                this.isClimbing = false;
+                this.vx = this.climbSide === 'left' ? 8 : -8;
+                this.vy = -8;
+            }
+
+            let targetBuilding = null;
+            for (let b of buildings) {
+                if (targetX >= b.x && targetX <= b.x + b.w) { targetBuilding = b; break; }
+            }
+            if (targetBuilding) {
+                let hookY = Math.max(targetY, targetBuilding.y);
+                let dx = targetX - this.x; let dy = hookY - this.y; let distToBuilding = Math.hypot(dx, dy);
+                if (distToBuilding > this.MAX_WEB_LENGTH) return; 
+                this.isHooked = true; this.hookPoint = { x: targetX, y: hookY }; this.ropeLength = distToBuilding; 
+                spawnParticles(targetX, hookY, this.isVenom ? '#000' : '#fff', 5); 
+            }
+        }
+        release() { this.isHooked = false; }
+    }
+
+    const player = new Player();
+
+    window.addEventListener('mousedown', (e) => { if (isGameOver) return; player.grapple(mouseWorldX, mouseWorldY); });
+    window.addEventListener('mouseup', () => { player.release(); });
+
+    function die() {
+        isGameOver = true; finalScore.innerHTML = score;
+        gameOverScreen.style.display = 'flex'; goblinHpContainer.style.display = 'none'; symbioteAlert.style.display = 'none';
+    }
+
+    function animate() {
+        if (isGameOver) return;
+        requestAnimationFrame(animate);
+
+        let targetCameraX = player.x - (canvas.width * 0.3);
+        cameraX += (targetCameraX - cameraX) * 0.1; 
+        if (cameraX < 0) cameraX = 0;
+
+        generateBuildings(); 
+        drawSky(); 
+
+        ctx.save();
+        ctx.translate(-cameraX, 0); 
+
+        for (let b of buildings) {
+            let bGrad = ctx.createLinearGradient(b.x, b.y, b.x + b.w, b.y);
+            bGrad.addColorStop(0, b.color);
+            bGrad.addColorStop(1, '#111'); 
+            
+            ctx.fillStyle = bGrad;
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+            
+            ctx.fillStyle = '#111';
+            ctx.fillRect(b.x, b.y, b.w, 15);
+
+            for(let wx = b.x + 15; wx < b.x + b.w - 25; wx += 35) {
+                for(let wy = b.y + 40; wy < b.y + b.h; wy += 45) {
+                    if(seededRandom(wx, wy) > 0.6) {
+                        ctx.fillStyle = '#f1c40f'; 
+                        ctx.shadowBlur = player.isVenom ? 0 : 10; ctx.shadowColor = '#f1c40f'; 
+                    } else {
+                        ctx.fillStyle = '#2c3e50'; 
+                        ctx.shadowBlur = 0;
+                    }
+                    ctx.fillRect(wx, wy, 15, 25);
+                }
+            }
+            ctx.shadowBlur = 0; 
+        }
+
+        for(let i = symbioteFlasks.length - 1; i >= 0; i--) {
+            let f = symbioteFlasks[i];
+            if (!f.active) continue;
+
+            let hoverY = f.y + Math.sin((Date.now() + f.hover)/200) * 10;
+
+            ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
+            ctx.fillRect(f.x - 10, hoverY - 15, 20, 30);
+            ctx.fillStyle = '#111'; 
+            ctx.fillRect(f.x - 8, hoverY - 5, 16, 18);
+            ctx.fillStyle = '#8e44ad'; 
+            ctx.beginPath(); ctx.arc(f.x, hoverY, 4, 0, Math.PI*2); ctx.fill();
+
+            if (Math.hypot(player.x - f.x, player.y - hoverY) < 50) {
+                f.active = false;
+                player.hasSymbiote = true;
+                symbioteAlert.style.display = 'block';
+                spawnParticles(f.x, hoverY, '#8e44ad', 20, 2);
+            }
+        }
+
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i]; p.update();
+            if (!goblin.isDead && Math.hypot(p.x - goblin.x, p.y - goblin.y) < 40) {
+                goblin.takeDamage(p.damage); projectiles.splice(i, 1); continue;
+            }
+            if (p.life <= 0) projectiles.splice(i, 1);
+        }
+
+        goblin.update();
+        player.update();
+        
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+        
+        ctx.restore();
+
+        score = Math.max(score, Math.floor(player.x / 50));
+        scoreEl.innerHTML = score;
+    }
+
+    generateBuildings();
+    animate();
+
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+</script>
+</body>
+</html>
