@@ -82,5 +82,12 @@
         "autor": "David",
         "arquivo": "hptcos.html",
         "imagem": "jogos/assets/capa_hp.png"
+    },
+    {
+        "nome": "Hack and Fds",
+        "autor": "Matheus",
+        "arquivo": "hackandfds.html",
+        "imagem": "jogos/assets/HackAndFds.png"
     }
+
 ]
