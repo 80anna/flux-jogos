@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>The Binding of Isaac</title>
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #game-wrapper {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            display: none;
+        }
+
+        .sidebar {
+            width: 220px;
+            background-color: #1a1a1a;
+            border: 4px solid #333;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 570px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        .sidebar h3 {
+            text-align: center;
+            border-bottom: 2px solid #444;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        #game-container {
+            position: relative;
+        }
+
+        canvas {
+            background-color: #000;
+            border: 6px solid #111;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.9);
+            border-radius: 8px;
+        }
+
+        #hud {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            margin-bottom: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            box-sizing: border-box;
+            border: 2px solid #333;
+        }
+
+        .hud-item { margin-right: 15px; text-shadow: 2px 2px 0 #000; }
+        .red { color: #ff4444; }
+        .gold { color: #ffd700; }
+        .silver { color: #aaaaaa; }
+
+        #notification {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 18px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .stat-line { margin-bottom: 10px; font-size: 16px; display: flex; align-items: center; gap: 10px; }
+        
+        .item-line {
+            margin-bottom: 15px; font-size: 16px; display: flex; flex-direction: column; 
+            padding: 5px; border-radius: 4px; transition: background 0.2s;
+        }
+        .item-line:hover { background-color: #333; }
+
+        #start-screen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh;
+        }
+
+        button {
+            padding: 15px 30px; font-size: 20px; font-family: inherit; background-color: #8b0000; color: white;
+            border: 2px solid #ff4444; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s;
+        }
+        button:hover { background-color: #ff4444; border-color: #fff; transform: scale(1.05); }
+
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <h1>The Binding of Isaac</h1>
+        <p>Mova com WASD. Atire com as Setas. Bomba no Espaço.</p>
+        <button onclick="startGame()">Entrar na Masmorra</button>
+    </div>
+
+    <div id="game-wrapper">
+        <div class="sidebar" id="left-sidebar">
+            <h3>Atributos</h3>
+            <div id="stats-list"></div>
+        </div>
+
+        <div>
+            <div id="hud">
+                <div>
+                    <span class="hud-item red">HP: <span id="hp">3</span>/<span id="maxhp">3</span></span>
+                    <span class="hud-item gold">Moedas: <span id="coins">0</span></span>
+                    <span class="hud-item gold">Chaves: <span id="keys">0</span></span>
+                    <span class="hud-item silver">Bombas: <span id="bombs">1</span></span>
+                </div>
+                <div>
+                    <span class="hud-item">Andar: <span id="floor">1</span></span>
+                </div>
+            </div>
+            <div id="game-container">
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+                <div id="notification"></div>
+            </div>
+        </div>
+
+        <div class="sidebar" id="right-sidebar">
+            <h3>Inventário</h3>
+            <div id="items-list"></div>
+        </div>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- MÚSICAS EXTERNAS ---
+    const bgm = {
+        normal1: new Audio('assets/thebindingofisaac/musica_normal1.mp3'),
+        normal2: new Audio('assets/thebindingofisaac/musica_normal2.mp3'),
+        normal3: new Audio('assets/thebindingofisaac/musica_normal3.mp3'),
+        normal4: new Audio('assets/thebindingofisaac/musica_normal4.mp3'),
+        boss:    new Audio('assets/thebindingofisaac/musica_boss.mp3'),
+        item:    new Audio('assets/thebindingofisaac/musica_item.mp3')
+    };
+    Object.values(bgm).forEach(track => { track.loop = true; track.volume = 0.3; });
+    let currentTrack = null;
+
+    function playMusic(trackName) {
+        if (currentTrack === trackName) return;
+        if (currentTrack && bgm[currentTrack]) bgm[currentTrack].pause();
+        currentTrack = trackName;
+        if (bgm[trackName]) {
+            bgm[trackName].currentTime = 0;
+            bgm[trackName].play().catch(e => console.log("Música não encontrada ou bloqueada pelo navegador."));
+        }
+    }
+
+    // Função auxiliar para tocar a música certa do andar
+    function playNormalMusic() {
+        let trackNum = ((currentFloor - 1) % 4) + 1;
+        playMusic('normal' + trackNum);
+    }
+
+    // --- SINTETIZADOR DE EFEITOS SONOROS ---
+    let audioCtx;
+    function initAudio() { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    
+    function playSfx(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        
+        if (type === 'shoot') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(150, now + 0.1);
+            gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'hurt') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+            gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'pickup') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(600, now + 0.05);
+            gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'coin' || type === 'buy') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); osc.frequency.setValueAtTime(1600, now + 0.05);
+            gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
+            osc.start(now); osc.stop(now + 0.15);
+        } else if (type === 'bomb') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(100, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+            gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'error') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now);
+            gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2);
+        } else if (type === 'enemy_hurt') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(250, now); osc.frequency.exponentialRampToValueAtTime(150, now + 0.1);
+            gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'enemy_die') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.25);
+            gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            osc.start(now); osc.stop(now + 0.25);
+        }
+    }
+
+    const TILE_SIZE = 50;
+    const COLS = canvas.width / TILE_SIZE;
+    const ROWS = canvas.height / TILE_SIZE;
+    const TILE = { FLOOR: 0, WALL: 1, ROCK: 2, DOOR: 3, LOCKED_DOOR: 4, TRAPDOOR: 5 };
+    const ROOM = { NORMAL: 0, START: 1, ITEM: 2, BOSS: 3, SHOP: 4 };
+
+    // --- SISTEMA DE TEMAS POR ANDAR (CICLO INFINITO) ---
+    const THEMES = [
+        { bg1: '#3e332a', bg2: '#362c24', wall: '#222', obs: '🪨' }, // Tema 1 
+        { bg1: '#2a353e', bg2: '#232c33', wall: '#112', obs: '🏺' }, // Tema 2 
+        { bg1: '#4a2525', bg2: '#3f1f1f', wall: '#210', obs: '💀' }, // Tema 3 
+        { bg1: '#302040', bg2: '#281a36', wall: '#102', obs: '🍄' }  // Tema 4
+    ];
+    // Utiliza o Módulo (%) para reiniciar a contagem dos temas após o 4
+    function getTheme() { return THEMES[(currentFloor - 1) % THEMES.length]; }
+
+    // --- CONJUNTO COMPLETO DE ITENS E EFEITOS ---
+    const ITEM_POOL = [
+        { id: 'cebola', name: "Cebola Triste", emoji: "🧅", desc: "Aumenta muito a velocidade de ataque", apply: p => p.fireRate = Math.max(5, p.fireRate - 8) },
+        { id: 'sangue', name: "Sangue de Mártir", emoji: "🩸", desc: "Aumenta o dano em 1.5", apply: p => p.damage += 1.5 },
+        { id: 'cafe', name: "Café Expresso", emoji: "☕", desc: "Aumenta a velocidade de movimento", apply: p => p.speed += 1.5 },
+        { id: 'lente', name: "Lente de Contato", emoji: "👁️", desc: "Aumenta a velocidade da lágrima", apply: p => p.shotSpeed += 3 },
+        { id: 'coracao', name: "Coração Puro", emoji: "💖", desc: "Concede +1 de HP Máximo e cura", apply: p => { p.maxHp += 1; p.hp += 1; } },
+        { id: 'bota', name: "Bota Mágica", emoji: "👢", desc: "Aumenta a velocidade de movimento em 2.0", apply: p => p.speed += 2.0 },
+        { id: 'faca', name: "Faca Cega", emoji: "🔪", desc: "Aumenta muito o dano (2.5)", apply: p => p.damage += 2.5 },
+        { id: 'asa', name: "Asas de Anjo", emoji: "👼", desc: "Permite voar sobre as pedras", apply: p => p.flight = true },
+        { id: 'fantasma', name: "Lágrima Fantasma", emoji: "👻", desc: "Suas lágrimas atravessam as pedras", apply: p => p.spectral = true },
+        { id: 'ima', name: "Super Ímã", emoji: "🧲", desc: "Atrai chaves, bombas e moedas", apply: p => p.magnet = true },
+        { id: 'triplo', name: "Terceiro Olho", emoji: "👁️‍🗨️", desc: "Dispara 3 lágrimas simultâneas (reduz Vel. Ataque)", apply: p => { p.multiShot = true; p.fireRate += 10; } },
+        { id: 'megabomb', name: "Senhor Mega", emoji: "💥", desc: "Bombas gigantes que causam dano massivo", apply: p => p.megaBomb = true },
+        { id: 'ciclope', name: "Olho de Ciclope", emoji: "🧿", desc: "+4 Dano, lágrimas gigantes, ataca bem devagar", apply: p => { p.damage += 4; p.fireRate += 20; p.shotSpeed -= 1.5; } },
+        { id: 'mapa', name: "Mapa do Tesouro", emoji: "🗺️", desc: "Revela todo o andar instantaneamente", apply: p => { p.fullMap = true; floorGrid.flat().forEach(r => { if(r) r.visited = true; }) } },
+        { id: 'pacto', name: "Pacto de Sangue", emoji: "🩸", desc: "+3 Dano em troca de 1 recipiente de vida máxima", apply: p => { p.damage += 3.0; p.maxHp = Math.max(1, p.maxHp - 1); if(p.hp > p.maxHp) p.hp = p.maxHp; } }
+    ];
+
+    let keys = {};
+    let currentFloor = 1;
+    let rooms = [];
+    let currentRoom = null;
+    let floorGrid = [];
+    let entities = { tears: [], enemies: [], pickups: [], bombs: [], enemyTears: [], explosions: [] };
+
+    // --- JOGADOR ---
+    const player = {
+        isPlayer: true,
+        x: 400, y: 300, w: 30, h: 30,
+        speed: 4, hp: 5, maxHp: 5, damage: 1.5, fireRate: 30, fireCooldown: 0, shotSpeed: 6,
+        coins: 0, keys: 1, bombs: 1, invulnerable: 0, shopErrorCooldown: 0,
+        color: '#ffcccc', collectedItems: [],
+        flight: false, spectral: false, magnet: false, multiShot: false, megaBomb: false, fullMap: false
+    };
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function rectIntersect(r1, r2) {
+        return !(r2.x > r1.x + r1.w || r2.x + r2.w < r1.x || r2.y > r1.y + r1.h || r2.y + r2.h < r1.y);
+    }
+
+    let notifTimeout;
+    function showNotification(message) {
+        const notif = document.getElementById('notification');
+        notif.innerText = message; notif.style.opacity = 1;
+        clearTimeout(notifTimeout);
+        notifTimeout = setTimeout(() => { notif.style.opacity = 0; }, 2000);
+    }
+
+    function updateUI() {
+        document.getElementById('hp').innerText = player.hp;
+        document.getElementById('maxhp').innerText = player.maxHp;
+        document.getElementById('coins').innerText = player.coins;
+        document.getElementById('keys').innerText = player.keys;
+        document.getElementById('bombs').innerText = player.bombs;
+        document.getElementById('floor').innerText = currentFloor;
+
+        let tearsPerSecond = (60 / player.fireRate).toFixed(1);
+        document.getElementById('stats-list').innerHTML = `
+            <div class="stat-line">⚔️ Dano: ${player.damage.toFixed(1)}</div>
+            <div class="stat-line">👟 Velocidade: ${player.speed.toFixed(1)}</div>
+            <div class="stat-line">⏱️ Ataque/s: ${tearsPerSecond}</div>
+            <div class="stat-line">💨 Vel. Tiro: ${player.shotSpeed.toFixed(1)}</div>
+            <hr style="border-color:#444">
+            ${player.flight ? '<div class="stat-line" style="color:#aaf">👼 Voo Ativo</div>' : ''}
+            ${player.spectral ? '<div class="stat-line" style="color:#aaf">👻 Lág. Fantasma</div>' : ''}
+            ${player.magnet ? '<div class="stat-line" style="color:#aaf">🧲 Atração Divina</div>' : ''}
+            ${player.multiShot ? '<div class="stat-line" style="color:#aaf">👁️‍🗨️ Tiro Triplo</div>' : ''}
+            ${player.megaBomb ? '<div class="stat-line" style="color:#aaf">💥 Bomba Mega</div>' : ''}
+        `;
+
+        let itemsHTML = player.collectedItems.map(item => 
+            `<div class="item-line">
+                <div style="font-weight:bold; display:flex; align-items:center; gap:5px;"><span>${item.emoji}</span> <span>${item.name}</span></div>
+                <div style="font-size: 11px; color: #999; margin-top: 4px; line-height: 1.2;">${item.desc}</div>
+            </div>`
+        ).join('');
+        document.getElementById('items-list').innerHTML = itemsHTML || "<div class='stat-line' style='color:#777'>Nenhum item.</div>";
+    }
+
+    // --- GERAÇÃO DE MAPA ---
+    function generateFloor() {
+        rooms = [];
+        entities = { tears: [], enemies: [], pickups: [], bombs: [], enemyTears: [], explosions: [] };
+        floorGrid = Array(9).fill().map(() => Array(9).fill(null));
+
+        let numRooms = 7 + currentFloor * 2;
+        let cx = 4, cy = 4;
+
+        let startRoom = createRoom(cx, cy, ROOM.START);
+        floorGrid[cx][cy] = startRoom; rooms.push(startRoom);
+        
+        let queue = [{ x: cx, y: cy }]; let created = 1;
+        let furthestRoom = startRoom; let maxDist = 0;
+        let itemRoomPlaced = false; let shopRoomPlaced = false;
+
+        while (created < numRooms && queue.length > 0) {
+            let curr = queue.shift();
+            let dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+            dirs.sort(() => Math.random() - 0.5);
+
+            for (let d of dirs) {
+                let nx = curr.x + d.dx, ny = curr.y + d.dy;
+                if (nx >= 0 && nx < 9 && ny >= 0 && ny < 9 && !floorGrid[nx][ny]) {
+                    if (Math.random() > 0.3 || created === 1) {
+                        let type = ROOM.NORMAL;
+                        if (created === numRooms - 1) type = ROOM.BOSS;
+                        else if (created === numRooms - 2 && !itemRoomPlaced) { type = ROOM.ITEM; itemRoomPlaced = true; }
+                        else if (created === numRooms - 3 && !shopRoomPlaced) { type = ROOM.SHOP; shopRoomPlaced = true; }
+
+                        let newRoom = createRoom(nx, ny, type);
+                        floorGrid[nx][ny] = newRoom; rooms.push(newRoom);
+                        queue.push({ x: nx, y: ny }); created++;
+
+                        let dist = Math.abs(nx - 4) + Math.abs(ny - 4);
+                        if (dist > maxDist) { maxDist = dist; furthestRoom = newRoom; }
+                        if (created >= numRooms) break;
+                    }
+                }
+            }
+            if (queue.length === 0 && created < numRooms) queue.push({ x: cx, y: cy });
+        }
+        if (!rooms.find(r => r.type === ROOM.BOSS)) furthestRoom.type = ROOM.BOSS;
+
+        for (let r of rooms) buildRoomLayout(r);
+
+        player.x = canvas.width / 2 - player.w / 2;
+        player.y = canvas.height / 2 - player.h / 2;
+        enterRoom(startRoom);
+    }
+
+    function createRoom(gridX, gridY, type) {
+        return { 
+            gridX, gridY, type, visited: player.fullMap, trapdoorActive: false,
+            tiles: Array(COLS).fill().map(() => Array(ROWS).fill(TILE.FLOOR)), 
+            cleared: (type === ROOM.START || type === ROOM.ITEM || type === ROOM.SHOP), 
+            doors: [], initialEnemies: [], pickups: [] 
+        };
+    }
+
+    function buildRoomLayout(room) {
+        let gx = room.gridX, gy = room.gridY;
+        for (let x = 0; x < COLS; x++) {
+            for (let y = 0; y < ROWS; y++) {
+                if (x === 0 || x === COLS - 1 || y === 0 || y === ROWS - 1) room.tiles[x][y] = TILE.WALL;
+                else if (room.type === ROOM.NORMAL && Math.random() < 0.1 && x > 2 && x < COLS - 3 && y > 2 && y < ROWS - 3) room.tiles[x][y] = TILE.ROCK;
+            }
+        }
+
+        let dirs = [{ dx: 0, dy: -1, px: COLS / 2, py: 0, dir: 'up' }, { dx: 0, dy: 1, px: COLS / 2, py: ROWS - 1, dir: 'down' }, { dx: -1, dy: 0, px: 0, py: ROWS / 2, dir: 'left' }, { dx: 1, dy: 0, px: COLS - 1, py: ROWS / 2, dir: 'right' }];
+        for (let d of dirs) {
+            let nx = gx + d.dx, ny = gy + d.dy;
+            if (nx >= 0 && nx < 9 && ny >= 0 && ny < 9 && floorGrid[nx][ny]) {
+                let adjRoom = floorGrid[nx][ny];
+                let isLocked = (adjRoom.type === ROOM.ITEM || room.type === ROOM.ITEM);
+                room.tiles[d.px][d.py] = isLocked ? TILE.LOCKED_DOOR : TILE.DOOR;
+                room.doors.push({ x: d.px, y: d.py, dir: d.dir, destX: nx, destY: ny, locked: isLocked });
+            }
+        }
+
+        if (room.type === ROOM.NORMAL) {
+            let emptyTiles = [];
+            for (let x = 2; x < COLS - 2; x++) {
+                for (let y = 2; y < ROWS - 2; y++) {
+                    if (room.tiles[x][y] === TILE.FLOOR) emptyTiles.push({x, y});
+                }
+            }
+
+            let enemyCount = 1 + Math.floor(Math.random() * (currentFloor * 1.5 + 2));
+            for (let i = 0; i < enemyCount; i++) {
+                if(emptyTiles.length === 0) break;
+
+                let rand = Math.random();
+                let type = 'chaser', hp = 3, speed = 1.5, w = 30, h = 30;
+                if (rand < 0.25) { type = 'shooter'; hp = 3; speed = 1.0; w = 30; h = 30; } 
+                else if (rand < 0.50) { type = 'fast_chaser'; hp = 2; speed = 2.5; w = 24; h = 24; } 
+                else if (rand < 0.75) { type = 'tank'; hp = 8; speed = 0.8; w = 45; h = 45; }
+
+                let finalHp = hp + (currentFloor * 2);
+
+                let tileIdx = Math.floor(Math.random() * emptyTiles.length);
+                let t = emptyTiles.splice(tileIdx, 1)[0];
+                let ex = t.x * TILE_SIZE + (TILE_SIZE - w)/2;
+                let ey = t.y * TILE_SIZE + (TILE_SIZE - h)/2;
+
+                room.initialEnemies.push({
+                    x: ex, y: ey, w: w, h: h, hp: finalHp, type: type, maxHp: finalHp, cooldown: 0, speed: speed, isBoss: false
+                });
+            }
+        } else if (room.type === ROOM.BOSS) {
+            let bossTypes = ['demon', 'skull', 'spider'];
+            let bType = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+            let speed = 1.5, hp = 15;
+            if(bType === 'skull') { speed = 1.0; hp = 20; }
+            if(bType === 'spider') { speed = 2.5; hp = 12; }
+
+            let bossHpMult = 1 + (currentFloor * 0.5);
+
+            room.initialEnemies.push({
+                x: canvas.width / 2 - 30, y: canvas.height / 2 - 30, w: 60, h: 60, 
+                hp: hp * bossHpMult, maxHp: hp * bossHpMult, type: bType, cooldown: 0, speed: speed, isBoss: true
+            });
+        } else if (room.type === ROOM.ITEM) {
+            let randomItem = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+            room.pickups.push({ x: canvas.width / 2 - 15, y: canvas.height / 2 - 15, w: 30, h: 30, type: 'pedestal', itemDef: randomItem, cost: 0 });
+        } else if (room.type === ROOM.SHOP) {
+            let randomItem = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+            room.pickups.push({ x: canvas.width / 2 - 80, y: canvas.height / 2 - 15, w: 30, h: 30, type: 'pedestal', itemDef: randomItem, cost: 5 });
+            room.pickups.push({ x: canvas.width / 2, y: canvas.height / 2, w: 15, h: 15, type: 'key', cost: 3 });
+            room.pickups.push({ x: canvas.width / 2 + 80, y: canvas.height / 2, w: 15, h: 15, type: 'bomb', cost: 3 });
+        }
+    }
+
+    function enterRoom(room) {
+        currentRoom = room;
+        room.visited = true; 
+        player.invulnerable = 60; 
+
+        entities.tears = []; entities.enemyTears = []; entities.bombs = []; entities.enemies = []; entities.pickups = []; entities.explosions = [];
+
+        if (!room.cleared) { for (let e of room.initialEnemies) entities.enemies.push({ ...e }); }
+        for (let p of room.pickups) entities.pickups.push({ ...p });
+
+        if (room.type === ROOM.BOSS && !room.cleared) playMusic('boss');
+        else if (room.type === ROOM.ITEM || room.type === ROOM.SHOP) playMusic('item');
+        else playNormalMusic();
+    }
+
+    function spawnGuaranteedConsumable(x, y) {
+        let rand = Math.random(); let type = 'coin';
+        if (rand < 0.33) type = 'bomb'; else if (rand < 0.66) type = 'key';
+        let p = { x: x, y: y, w: 15, h: 15, type: type, cost: 0 };
+        currentRoom.pickups.push(p); entities.pickups.push(p);
+    }
+
+    function placeBomb() {
+        if (player.bombs > 0) { 
+            player.bombs--; 
+            let rad = player.megaBomb ? 200 : 100;
+            entities.bombs.push({ x: player.x + player.w / 2, y: player.y + player.h / 2, timer: 120, radius: rad, isMega: player.megaBomb }); 
+        }
+    }
+
+    function explodeBomb(bomb) {
+        playSfx('bomb');
+        
+        entities.explosions.push({ x: bomb.x, y: bomb.y, r: bomb.radius, timer: 20, maxTimer: 20 });
+
+        let cx = Math.floor(bomb.x / TILE_SIZE), cy = Math.floor(bomb.y / TILE_SIZE);
+        for (let x = Math.max(1, cx - 2); x <= Math.min(COLS - 2, cx + 2); x++) {
+            for (let y = Math.max(1, cy - 2); y <= Math.min(ROWS - 2, cy + 2); y++) {
+                if (currentRoom.tiles[x][y] === TILE.ROCK) currentRoom.tiles[x][y] = TILE.FLOOR;
+            }
+        }
+        
+        let dmg = bomb.isMega ? 15 : 5;
+        entities.enemies.forEach(e => {
+            let dx = (e.x + e.w / 2) - bomb.x, dy = (e.y + e.h / 2) - bomb.y;
+            if (Math.sqrt(dx * dx + dy * dy) < bomb.radius) {
+                e.hp -= dmg;
+                if(e.hp <= 0) playSfx('enemy_die'); else playSfx('enemy_hurt');
+            }
+        });
+        
+        entities.enemies = entities.enemies.filter(e => {
+            if(e.hp <= 0 && e.isBoss) {
+                playNormalMusic(); 
+                currentRoom.tiles[Math.floor(COLS / 2)][Math.floor(ROWS / 2) + 2] = TILE.TRAPDOOR;
+                currentRoom.trapdoorActive = false; 
+                setTimeout(() => { if(currentRoom) currentRoom.trapdoorActive = true; }, 2000);
+
+                let randItem = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+                let p = { x: canvas.width/2 - 15, y: canvas.height/2 - 15, w: 30, h: 30, type: 'pedestal', itemDef: randItem, cost: 0 };
+                currentRoom.pickups.push(p); entities.pickups.push(p);
+            }
+            return e.hp > 0;
+        });
+
+        let pdx = (player.x + player.w / 2) - bomb.x, pdy = (player.y + player.h / 2) - bomb.y;
+        if (Math.sqrt(pdx * pdx + pdy * pdy) < bomb.radius && player.invulnerable <= 0) { 
+            player.hp -= 1; player.invulnerable = 60; playSfx('hurt'); 
+        }
+    }
+
+    // --- LOOP DE ATUALIZAÇÃO ---
+    function update() {
+        // Movimento
+        let dx = 0, dy = 0;
+        if (keys['KeyW']) dy -= player.speed; if (keys['KeyS']) dy += player.speed;
+        if (keys['KeyA']) dx -= player.speed; if (keys['KeyD']) dx += player.speed;
+        moveEntity(player, dx, dy);
+
+        // Tiro
+        if (player.fireCooldown > 0) player.fireCooldown--;
+        let shootX = 0, shootY = 0;
+        if (keys['ArrowUp']) shootY = -player.shotSpeed; if (keys['ArrowDown']) shootY = player.shotSpeed;
+        if (keys['ArrowLeft']) shootX = -player.shotSpeed; if (keys['ArrowRight']) shootX = player.shotSpeed;
+
+        if ((shootX !== 0 || shootY !== 0) && player.fireCooldown <= 0) {
+            playSfx('shoot');
+            let cx = player.x + player.w / 2 - 5;
+            let cy = player.y + player.h / 2 - 5;
+            let tearW = player.damage >= 5 ? 20 : 10; 
+            
+            entities.tears.push({ x: cx, y: cy, w: tearW, h: tearW, vx: shootX, vy: shootY });
+
+            if (player.multiShot) {
+                let offset = tearW + 5;
+                if (shootX !== 0) { 
+                    entities.tears.push({ x: cx, y: cy - offset, w: tearW, h: tearW, vx: shootX, vy: shootY });
+                    entities.tears.push({ x: cx, y: cy + offset, w: tearW, h: tearW, vx: shootX, vy: shootY });
+                } else { 
+                    entities.tears.push({ x: cx - offset, y: cy, w: tearW, h: tearW, vx: shootX, vy: shootY });
+                    entities.tears.push({ x: cx + offset, y: cy, w: tearW, h: tearW, vx: shootX, vy: shootY });
+                }
+            }
+
+            player.fireCooldown = player.fireRate;
+        }
+
+        // Bombas e Explosões
+        if (keys['Space'] && !player.spacePressed) { placeBomb(); player.spacePressed = true; }
+        if (!keys['Space']) player.spacePressed = false;
+
+        for (let i = entities.bombs.length - 1; i >= 0; i--) {
+            let b = entities.bombs[i]; b.timer--;
+            if (b.timer <= 0) { explodeBomb(b); entities.bombs.splice(i, 1); }
+        }
+
+        for (let i = entities.explosions.length - 1; i >= 0; i--) {
+            entities.explosions[i].timer--;
+            if (entities.explosions[i].timer <= 0) entities.explosions.splice(i, 1);
+        }
+
+        // Invulnerabilidade do jogador
+        if (player.invulnerable > 0) player.invulnerable--;
+
+        // Atualização dos Tiros do Jogador e Acerto em Inimigos
+        for (let i = entities.tears.length - 1; i >= 0; i--) {
+            let t = entities.tears[i]; t.x += t.vx; t.y += t.vy;
+            let hitWall = checkWallCollision(t, true); 
+            let hitEnemy = false;
+
+            for (let j = entities.enemies.length - 1; j >= 0; j--) {
+                let e = entities.enemies[j];
+                if (rectIntersect(t, e)) {
+                    e.hp -= player.damage; hitEnemy = true;
+                    if (e.hp <= 0) {
+                        playSfx('enemy_die');
+                        if (e.isBoss) {
+                            playNormalMusic(); 
+                            currentRoom.tiles[Math.floor(COLS / 2)][Math.floor(ROWS / 2) + 2] = TILE.TRAPDOOR;
+                            
+                            currentRoom.trapdoorActive = false; 
+                            setTimeout(() => { if(currentRoom) currentRoom.trapdoorActive = true; }, 2000);
+
+                            let randItem = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+                            let p = { x: canvas.width/2 - 15, y: canvas.height/2 - 15, w: 30, h: 30, type: 'pedestal', itemDef: randItem, cost: 0 };
+                            currentRoom.pickups.push(p); entities.pickups.push(p);
+                        }
+                        entities.enemies.splice(j, 1);
+                    } else {
+                        playSfx('enemy_hurt'); 
+                    }
+                    break;
+                }
+            }
+            if (hitWall || hitEnemy) entities.tears.splice(i, 1);
+        }
+
+        // Drop Garantido ao Limpar
+        let isRoomCleared = entities.enemies.length === 0;
+        if (isRoomCleared && !currentRoom.cleared) {
+            currentRoom.cleared = true;
+            if (currentRoom.type === ROOM.NORMAL) spawnGuaranteedConsumable(canvas.width / 2, canvas.height / 2);
+        }
+
+        // Inteligência dos Inimigos
+        for (let e of entities.enemies) {
+            let edx = 0, edy = 0; let dist = Math.hypot(player.x - e.x, player.y - e.y);
+            
+            if (e.type === 'chaser' || e.type === 'fast_chaser' || e.type === 'tank' || e.type === 'spider' || e.type === 'demon') {
+                if (dist > 0) { edx = ((player.x - e.x) / dist) * e.speed; edy = ((player.y - e.y) / dist) * e.speed; }
+            } else if (e.type === 'shooter' || e.type === 'skull') {
+                if (dist > 200) { edx = ((player.x - e.x) / dist) * e.speed; edy = ((player.y - e.y) / dist) * e.speed; }
+                if (e.cooldown <= 0 && dist < 400) {
+                    let speedMulti = e.type === 'skull' ? 6 : 4;
+                    entities.enemyTears.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, w: 10, h: 10, vx: ((player.x - e.x) / dist) * speedMulti, vy: ((player.y - e.y) / dist) * speedMulti });
+                    e.cooldown = e.type === 'skull' ? 40 : 60;
+                } else e.cooldown--;
+            }
+
+            if (e.type === 'demon' || e.type === 'spider') {
+                if (e.cooldown <= 0) {
+                    if (e.type === 'demon') {
+                        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) entities.enemyTears.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, w: 12, h: 12, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 });
+                        e.cooldown = 100;
+                    } else {
+                        entities.enemyTears.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, w: 10, h: 10, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5 });
+                        e.cooldown = 20;
+                    }
+                } else e.cooldown--;
+            }
+
+            moveEntity(e, edx, edy);
+            if (rectIntersect(player, e) && player.invulnerable <= 0) { 
+                player.hp -= 1; player.invulnerable = 60; playSfx('hurt'); 
+            }
+        }
+
+        // Tiros Inimigos
+        for (let i = entities.enemyTears.length - 1; i >= 0; i--) {
+            let t = entities.enemyTears[i]; t.x += t.vx; t.y += t.vy;
+            if (rectIntersect(t, player) && player.invulnerable <= 0) { 
+                player.hp -= 1; player.invulnerable = 60; playSfx('hurt'); entities.enemyTears.splice(i, 1); 
+            } else if (checkWallCollision(t, false)) entities.enemyTears.splice(i, 1); 
+        }
+
+        // ÍMÃ DE ITENS E COLETÁVEIS
+        for (let i = entities.pickups.length - 1; i >= 0; i--) {
+            let p = entities.pickups[i];
+            
+            if (player.magnet && p.type !== 'pedestal' && p.cost === 0) {
+                let dx = (player.x + player.w/2) - (p.x + p.w/2);
+                let dy = (player.y + player.h/2) - (p.y + p.h/2);
+                let dist = Math.hypot(dx, dy);
+                if (dist < 200 && dist > 0) {
+                    p.x += (dx/dist) * 3;
+                    p.y += (dy/dist) * 3;
+                }
+            }
+
+            if (rectIntersect(player, p)) {
+                if (p.cost > 0) {
+                    if (player.coins >= p.cost) {
+                        player.coins -= p.cost; playSfx('buy');
+                    } else {
+                        if(player.shopErrorCooldown <= 0) { playSfx('error'); showNotification("Moedas Insuficientes!"); player.shopErrorCooldown = 60; }
+                        continue; 
+                    }
+                } else {
+                    if (p.type === 'coin') playSfx('coin'); else playSfx('pickup');
+                }
+
+                if (p.type === 'coin') { player.coins++; showNotification("🪙 +1 Moeda"); }
+                else if (p.type === 'bomb') { player.bombs++; showNotification("💣 +1 Bomba"); }
+                else if (p.type === 'key') { player.keys++; showNotification("🔑 +1 Chave"); }
+                else if (p.type === 'heart') { 
+                    if (player.hp < player.maxHp) { player.hp++; showNotification("❤️ Curou 1"); }
+                    else { if (p.cost > 0) player.coins += p.cost; continue; } 
+                } 
+                else if (p.type === 'pedestal') { 
+                    p.itemDef.apply(player); player.collectedItems.push(p.itemDef);
+                    showNotification(`${p.itemDef.emoji} Coletou: ${p.itemDef.name}`);
+                }
+
+                currentRoom.pickups = currentRoom.pickups.filter(rp => rp.x !== p.x || rp.y !== p.y);
+                entities.pickups.splice(i, 1);
+            }
+        }
+        if (player.shopErrorCooldown > 0) player.shopErrorCooldown--;
+
+        checkEnvironmentInteraction();
+
+        // Morte
+        if (player.hp <= 0) {
+            alert("GAME OVER! Você chegou no Andar " + currentFloor);
+            document.location.reload();
+        }
+
+        updateUI();
+    }
+
+    // --- FÍSICA E COLISÃO ---
+    function moveEntity(ent, dx, dy) {
+        ent.x += dx;
+        if (checkWallCollision(ent)) {
+            let pTileX = Math.floor((ent.x + ent.w / 2) / TILE_SIZE); let pTileY = Math.floor((ent.y + ent.h / 2) / TILE_SIZE);
+            if (!(currentRoom.tiles[pTileX] && currentRoom.tiles[pTileX][pTileY] === TILE.DOOR && currentRoom.cleared)) ent.x -= dx;
+        }
+        ent.y += dy;
+        if (checkWallCollision(ent)) {
+            let pTileX = Math.floor((ent.x + ent.w / 2) / TILE_SIZE); let pTileY = Math.floor((ent.y + ent.h / 2) / TILE_SIZE);
+            if (!(currentRoom.tiles[pTileX] && currentRoom.tiles[pTileX][pTileY] === TILE.DOOR && currentRoom.cleared)) ent.y -= dy;
+        }
+    }
+
+    function checkWallCollision(rect, isTear = false) {
+        let leftTile = Math.floor(rect.x / TILE_SIZE), rightTile = Math.floor((rect.x + rect.w) / TILE_SIZE);
+        let topTile = Math.floor(rect.y / TILE_SIZE), bottomTile = Math.floor((rect.y + rect.h) / TILE_SIZE);
+
+        for (let x = leftTile; x <= rightTile; x++) {
+            for (let y = topTile; y <= bottomTile; y++) {
+                if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                    let t = currentRoom.tiles[x][y];
+                    if (t === TILE.WALL) return true;
+                    if (t === TILE.ROCK) {
+                        if (rect.isPlayer && rect.flight) continue;
+                        if (isTear && player.spectral) continue;
+                        return true;
+                    }
+                    if ((t === TILE.DOOR || t === TILE.LOCKED_DOOR) && !currentRoom.cleared) return true;
+                    if (t === TILE.LOCKED_DOOR && currentRoom.cleared) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function checkEnvironmentInteraction() {
+        let pCX = player.x + player.w / 2, pCY = player.y + player.h / 2;
+        let tX = Math.floor(pCX / TILE_SIZE), tY = Math.floor(pCY / TILE_SIZE);
+
+        if (currentRoom.cleared) {
+            for (let d of currentRoom.doors) {
+                if (d.locked && Math.abs(tX - d.x) <= 1 && Math.abs(tY - d.y) <= 1) {
+                    let doorRect = { x: d.x * TILE_SIZE, y: d.y * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE };
+                    let extP = { x: player.x - 5, y: player.y - 5, w: player.w + 10, h: player.h + 10 };
+                    if (rectIntersect(extP, doorRect) && player.keys > 0) {
+                        player.keys--; d.locked = false; currentRoom.tiles[d.x][d.y] = TILE.DOOR;
+                        playSfx('pickup'); showNotification("🔓 Porta Destrancada");
+                        let destRoom = floorGrid[d.destX][d.destY];
+                        let oppD = destRoom.doors.find(od => od.destX === currentRoom.gridX && od.destY === currentRoom.gridY);
+                        if (oppD) { oppD.locked = false; destRoom.tiles[oppD.x][oppD.y] = TILE.DOOR; }
+                    }
+                }
+            }
+            if (tX === 0) changeRoom(tX, tY, 'left'); else if (tX === COLS - 1) changeRoom(tX, tY, 'right');
+            else if (tY === 0) changeRoom(tX, tY, 'up'); else if (tY === ROWS - 1) changeRoom(tX, tY, 'down');
+        }
+        
+        if (currentRoom.tiles[tX][tY] === TILE.TRAPDOOR && currentRoom.trapdoorActive !== false) { currentFloor++; generateFloor(); }
+    }
+
+    function changeRoom(tx, ty, dir) {
+        let door = currentRoom.doors.find(d => d.dir === dir);
+        if (door && !door.locked) {
+            enterRoom(floorGrid[door.destX][door.destY]);
+            if (dir === 'left') player.x = (COLS - 2) * TILE_SIZE - player.w;
+            if (dir === 'right') player.x = TILE_SIZE;
+            if (dir === 'up') player.y = (ROWS - 2) * TILE_SIZE - player.h;
+            if (dir === 'down') player.y = TILE_SIZE;
+        }
+    }
+
+    // --- DESENHO (RENDER) ---
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let theme = getTheme(); 
+
+        for (let x = 0; x < COLS; x++) {
+            for (let y = 0; y < ROWS; y++) {
+                ctx.fillStyle = (x + y) % 2 === 0 ? theme.bg1 : theme.bg2;
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+
+                let t = currentRoom.tiles[x][y];
+                if (t === TILE.WALL) { 
+                    ctx.fillStyle = theme.wall; 
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE); 
+                    ctx.strokeStyle = '#000'; ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                } 
+                else if (t === TILE.ROCK) { 
+                    ctx.font = "35px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    ctx.fillText(theme.obs, x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2);
+                } 
+                else if (t === TILE.DOOR) { 
+                    ctx.fillStyle = '#111'; ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = currentRoom.cleared ? '#321' : '#111'; 
+                    ctx.fillRect(x * TILE_SIZE + 5, y * TILE_SIZE + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+                } 
+                else if (t === TILE.LOCKED_DOOR) { 
+                    ctx.fillStyle = '#111'; ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = '#543'; ctx.fillRect(x * TILE_SIZE + 5, y * TILE_SIZE + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+                    ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    ctx.fillText("🔒", x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2);
+                } 
+                else if (t === TILE.TRAPDOOR) { 
+                    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x * TILE_SIZE + 25, y * TILE_SIZE + 25, 20, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = currentRoom.trapdoorActive === false ? '#aa0000' : '#333'; 
+                    ctx.lineWidth = 3; ctx.stroke();
+                }
+            }
+        }
+
+        if(currentRoom.type === ROOM.SHOP) {
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.15)'; ctx.font = "80px Arial";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("💰", canvas.width/2, canvas.height/2 + 25);
+        }
+
+        for (let p of entities.pickups) {
+            if (p.type === 'pedestal') {
+                ctx.fillStyle = 'purple'; ctx.fillRect(p.x, p.y, p.w, p.h);
+                ctx.font = "24px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(p.itemDef.emoji, p.x + p.w/2, p.y + p.h/2);
+            } else {
+                let drawEmoji = '';
+                if (p.type === 'coin') drawEmoji = '🪙';
+                else if (p.type === 'key') drawEmoji = '🔑';
+                else if (p.type === 'bomb') drawEmoji = '💣';
+                else if (p.type === 'heart') drawEmoji = '❤️';
+                
+                ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(drawEmoji, p.x + p.w / 2, p.y + p.h / 2);
+            }
+
+            if (p.cost && p.cost > 0) {
+                ctx.fillStyle = 'white'; ctx.font = "bold 16px Courier New"; ctx.textAlign = "center";
+                ctx.fillText(p.cost + "¢", p.x + p.w / 2, p.y + p.h + 15);
+            }
+        }
+
+        for (let b of entities.bombs) {
+            ctx.fillStyle = (b.timer % 10 < 5) ? '#fff' : '#111';
+            ctx.beginPath(); ctx.arc(b.x, b.y, b.isMega ? 25 : 15, 0, Math.PI * 2); ctx.fill();
+            if (b.isMega) { ctx.fillStyle = 'red'; ctx.fillText("M", b.x, b.y + 2); }
+        }
+
+        for (let exp of entities.explosions) {
+            let alpha = exp.timer / exp.maxTimer;
+            ctx.fillStyle = `rgba(255, 140, 0, ${alpha})`;
+            ctx.beginPath(); ctx.arc(exp.x, exp.y, exp.r, 0, Math.PI * 2); ctx.fill();
+            
+            ctx.fillStyle = `rgba(255, 255, 100, ${alpha * 0.8})`;
+            ctx.beginPath(); ctx.arc(exp.x, exp.y, exp.r * 0.6, 0, Math.PI * 2); ctx.fill();
+        }
+
+        for (let e of entities.enemies) {
+            let emoji = "👾"; 
+            if(e.type === 'chaser') emoji = "🧟";
+            else if(e.type === 'fast_chaser') emoji = "🦇";
+            else if(e.type === 'tank') emoji = "🧌";
+            else if(e.type === 'shooter') emoji = "👽";
+            else if(e.type === 'demon') emoji = "👹";
+            else if(e.type === 'skull') emoji = "💀";
+            else if(e.type === 'spider') emoji = "🕷️";
+
+            ctx.font = Math.floor(e.w * 0.9) + "px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(emoji, e.x + e.w/2, e.y + e.h/2);
+
+            ctx.fillStyle = 'black'; ctx.fillRect(e.x, e.y - 10, e.w, 4);
+            ctx.fillStyle = 'red'; ctx.fillRect(e.x, e.y - 10, e.w * (Math.max(0, e.hp) / e.maxHp), 4);
+        }
+
+        ctx.fillStyle = player.spectral ? 'rgba(136, 204, 255, 0.5)' : '#88ccff';
+        for (let t of entities.tears) { ctx.beginPath(); ctx.arc(t.x + t.w / 2, t.y + t.h / 2, t.w / 2, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = '#ff4444';
+        for (let t of entities.enemyTears) { ctx.beginPath(); ctx.arc(t.x + t.w / 2, t.y + t.h / 2, t.w / 2, 0, Math.PI * 2); ctx.fill(); }
+
+        if (player.invulnerable <= 0 || Math.floor(Date.now() / 100) % 2 === 0) {
+            if(player.flight) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath(); ctx.arc(player.x - 5, player.y + player.h/2, 10, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(player.x + player.w + 5, player.y + player.h/2, 10, 0, Math.PI * 2); ctx.fill();
+            }
+
+            ctx.fillStyle = player.invulnerable > 0 ? '#ffd700' : player.color;
+            ctx.beginPath(); ctx.arc(player.x + player.w / 2, player.y + player.h / 2, player.w / 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(player.x + player.w / 2 - 5, player.y + player.h / 2 - 5, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(player.x + player.w / 2 + 5, player.y + player.h / 2 - 5, 3, 0, Math.PI * 2); ctx.fill();
+        }
+
+        const mmSize = 15; const mmPadding = 15;
+        const mmX = canvas.width - (9 * mmSize) - mmPadding; const mmY = canvas.height - (9 * mmSize) - mmPadding;
+        ctx.globalAlpha = 0.7; ctx.fillStyle = '#111'; ctx.fillRect(mmX - 5, mmY - 5, 9*mmSize + 10, 9*mmSize + 10);
+
+        for (let gx = 0; gx < 9; gx++) {
+            for (let gy = 0; gy < 9; gy++) {
+                let r = floorGrid[gx][gy];
+                if (r) {
+                    if (r === currentRoom) ctx.fillStyle = '#fff';
+                    else if (r.visited) {
+                        ctx.fillStyle = r.cleared ? '#666' : '#444'; 
+                        if(r.type === ROOM.BOSS) ctx.fillStyle = '#aa0000';
+                        if(r.type === ROOM.ITEM) ctx.fillStyle = '#aa00aa';
+                        if(r.type === ROOM.SHOP) ctx.fillStyle = '#aaaa00';
+                    } else ctx.fillStyle = '#222'; 
+                    ctx.fillRect(mmX + gx*mmSize, mmY + gy*mmSize, mmSize-2, mmSize-2);
+                }
+            }
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+
+    function startGame() {
+        initAudio(); 
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-wrapper').style.display = 'flex';
+        generateFloor(); 
+        updateUI(); 
+        gameLoop();
+    }
+    </script>
+</body>
+</html>

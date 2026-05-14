@@ -64,5 +64,11 @@
         "autor": "Gustavo",
         "arquivo": "homemaranha3.html",
         "imagem": "jogos/assets/homemaranha3.png"
+    },
+    {
+        "nome": "The Binding of Isaac",
+        "autor": "Lucas",
+        "arquivo": "thebindingofisaac.html",
+        "imagem": "jogos/assets/thebindingofisaac.png"
     }
 ]
