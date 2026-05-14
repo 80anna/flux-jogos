@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MORADOR DO MAL</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            color: white;
+            font-family: 'VT323', monospace;
+        }
+
+        #game-wrapper {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            border: 2px solid #222;
+            overflow: hidden;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            display: block;
+            width: 960px;
+            height: 540px;
+        }
+
+        /* --- MENU PRINCIPAL --- */
+        #main-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.9) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #title-logo {
+            font-size: 100px;
+            color: #880000;
+            text-shadow: 4px 4px 0px #000, 0 0 20px #ff0000;
+            margin-bottom: 50px;
+            letter-spacing: 5px;
+            font-weight: bold;
+            animation: pulse 3s infinite;
+        }
+
+        .menu-btn {
+            font-size: 36px;
+            color: #aaa;
+            margin: 10px 0;
+            cursor: pointer;
+            text-shadow: 2px 2px #000;
+            transition: all 0.2s;
+            width: 250px;
+            text-align: left;
+            padding-left: 20px;
+            border-left: 4px solid transparent;
+        }
+
+        .menu-btn:hover {
+            color: #fff;
+            border-left: 4px solid #880000;
+            background: rgba(136, 0, 0, 0.2);
+            transform: translateX(10px);
+        }
+
+        #menu-footer {
+            position: absolute;
+            bottom: 20px;
+            color: #555;
+            font-size: 18px;
+        }
+
+        @keyframes pulse {
+            0% {
+                text-shadow: 4px 4px 0px #000, 0 0 10px #550000;
+            }
+
+            50% {
+                text-shadow: 4px 4px 0px #000, 0 0 30px #ff0000;
+            }
+
+            100% {
+                text-shadow: 4px 4px 0px #000, 0 0 10px #550000;
+            }
+        }
+
+        /* --- HUD & INGAME UI --- */
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            text-align: right;
+            text-shadow: 2px 2px 0px #000;
+            pointer-events: none;
+            display: none;
+        }
+
+        .hud-text {
+            font-size: 28px;
+            margin: 2px 0;
+        }
+
+        .hud-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin: 2px 0;
+        }
+
+        .hud-icon {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+            filter: drop-shadow(2px 2px 0px #000);
+        }
+
+        .status-fine {
+            color: #4caf50;
+        }
+
+        .status-caution {
+            color: #ffeb3b;
+        }
+
+        .status-danger {
+            color: #f44336;
+        }
+
+        #level-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 32px;
+            text-shadow: 2px 2px #000;
+            color: #fff;
+            pointer-events: none;
+            display: none;
+        }
+
+        #controls-hint {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #888;
+            font-size: 18px;
+            pointer-events: none;
+            display: none;
+        }
+
+        #interaction-hint {
+            position: absolute;
+            bottom: 80px;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            color: #ffcc00;
+            display: none;
+            text-shadow: 2px 2px #000;
+        }
+
+        #inventory-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 50;
+        }
+
+        #attache-case {
+            background: #1a1a1a;
+            border: 4px solid #444;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(8, 40px);
+            grid-template-rows: repeat(5, 40px);
+            gap: 2px;
+        }
+
+        .slot {
+            background: #2a2a2a;
+            border: 1px solid #111;
+            position: relative;
+        }
+
+        .item {
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            right: 1px;
+            bottom: 1px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            border: 1px solid #777;
+            font-weight: bold;
+        }
+
+        .item.handgun {
+            background-image: url('assets/handgun.png');
+            background-size: cover;
+            background-position: center;
+            background-color: #222;
+            grid-column: span 3;
+            grid-row: span 2;
+            color: transparent;
+            text-shadow: none;
+        }
+
+        .item.shotgun {
+            background-image: url('assets/shotgun.png');
+            background-size: cover;
+            background-position: center;
+            background-color: #222;
+            grid-column: span 4;
+            grid-row: span 2;
+            color: transparent;
+            text-shadow: none;
+        }
+
+        #overlay-message {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 60px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            text-shadow: 4px 4px #000;
+            z-index: 90;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="game-wrapper">
+        <!-- MENU LAYER -->
+        <div id="main-menu">
+            <div id="title-logo">MORADOR DO MAL</div>
+            <div class="menu-btn" onclick="startGame()">INICIAR JOGO</div>
+            <div class="menu-btn" onclick="showControlsMenu()">CONTROLES</div>
+            <div id="menu-footer">MOTOR DE SURVIVAL HORROR v1.0</div>
+        </div>
+
+        <!-- INGAME UI LAYER -->
+        <div id="controls-hint">A/D: Mover | W: Pular | R: Recarregar<br>1-2: Trocar Arma | Mouse: Atirar</div>
+        <div id="level-display">ÁREA 1</div>
+
+        <div id="hud">
+            <div class="hud-text" id="weapon-display">ARMA: PISTOLA</div>
+            <div class="hud-row"><img src="assets/bullets_icon.png" class="hud-icon"><span class="hud-text"
+                    id="ammo-display">MUNIÇÃO: 15 / 30</span></div>
+            <div class="hud-row"><img src="assets/health_icon.png" class="hud-icon"><span class="hud-text status-fine"
+                    id="hp-display">STATUS: BEM</span></div>
+        </div>
+
+        <div id="interaction-hint">VÁ PARA A DIREITA PARA A PRÓXIMA ÁREA >></div>
+
+        <!-- INVENTORY LAYER -->
+        <div id="inventory-overlay">
+            <h2 style="font-size: 40px; margin-bottom: 10px;">MALETA</h2>
+            <div id="attache-case">
+                <div class="item handgun" style="grid-area: 1 / 1 / span 2 / span 3;">Pistola (1)</div>
+                <div class="item shotgun" style="grid-area: 3 / 1 / span 2 / span 4;">Escopeta (2)</div>
+            </div>
+            <p style="color: #aaa; margin-top: 20px;">[TAB] para fechar | [1] ou [2] para equipar</p>
+        </div>
+
+        <!-- SYSTEM MESSAGES LAYER -->
+        <div id="overlay-message"></div>
+
+        <canvas id="gameCanvas" width="480" height="270"></canvas>
+    </div>
+
+    <script>
+        /**
+         * ESTADOS E CONFIGURAÇÕES
+         */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const bgImage = new Image();
+        bgImage.src = 'assets/bg.png';
+
+        const playerWalkImage = new Image();
+        playerWalkImage.src = 'assets/player_walk.png';
+
+        const zombieWalkImage = new Image();
+        zombieWalkImage.src = 'assets/zombie_walk.png';
+
+        const hgAmmoImage = new Image();
+        hgAmmoImage.src = 'assets/hg_ammo.png';
+
+        const sgAmmoImage = new Image();
+        sgAmmoImage.src = 'assets/sg_ammo.png';
+
+        const herbImage = new Image();
+        herbImage.src = 'assets/herb.png';
+
+        const GAME_STATE = { MENU: 0, PLAYING: 1, INVENTORY: 2, GAMEOVER: 3, TRANSITION: 4 };
+        let currentState = GAME_STATE.MENU;
+        let currentLevel = 1;
+        let menuCameraX = 0; // Para o efeito de pan no menu
+
+        const WEAPONS = {
+            0: { id: 'Pistola', damage: 25, magSize: 15, spread: 0, pellets: 1, fireRate: 350, color: '#4a5568' },
+            1: { id: 'Escopeta', damage: 20, magSize: 6, spread: 0.15, pellets: 6, fireRate: 1000, color: '#632323' }
+        };
+
+        // Controles
+        const keys = {};
+        const mouse = { x: 0, y: 0, isDown: false };
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.INVENTORY) {
+                if (e.key === 'Tab') { e.preventDefault(); toggleInventory(); }
+                if (e.key.toLowerCase() === 'r' && currentState === GAME_STATE.PLAYING) player.reload();
+                if (e.key === '1' && currentState === GAME_STATE.PLAYING) player.switchWeapon(0);
+                if (e.key === '2' && currentState === GAME_STATE.PLAYING) player.switchWeapon(1);
+            }
+        });
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            mouse.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+        });
+        canvas.addEventListener('mousedown', () => { if (currentState === GAME_STATE.PLAYING) player.shoot(); });
+
+        /**
+         * FUNÇÕES DA INTERFACE (UI)
+         */
+        function startGame() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('controls-hint').style.display = 'block';
+            document.getElementById('level-display').style.display = 'block';
+
+            // Reseta status para novo jogo
+            currentLevel = 1;
+            player.hp = 100;
+            player.ammo = { 0: 30, 1: 12 };
+            player.mag = { 0: 15, 1: 6 };
+            player.currentWeapon = 0;
+            player.updateHUD();
+
+            initLevel();
+        }
+
+        function showControlsMenu() {
+            alert("CONTROLES DE SOBREVIVÊNCIA:\n\n[A] / [D] - Movimentar-se\n[W] - Pular\n[Mouse] - Mirar e Atirar\n[R] - Recarregar\n[1] / [2] - Trocar Armas\n[TAB] - Abrir Maleta (Inventário)");
+        }
+
+        function toggleInventory() {
+            if (currentState === GAME_STATE.GAMEOVER) return;
+            const invOverlay = document.getElementById('inventory-overlay');
+            if (currentState === GAME_STATE.PLAYING) {
+                currentState = GAME_STATE.INVENTORY;
+                invOverlay.style.display = 'flex';
+            } else {
+                currentState = GAME_STATE.PLAYING;
+                invOverlay.style.display = 'none';
+            }
+        }
+
+        /**
+         * SISTEMA DE RENDERIZAÇÃO
+         */
+        function drawHumanoid(ctx, x, y, isFacingRight, frameTime, type = 'player', state = 'idle', currentWeaponIdx = 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            if (!isFacingRight) ctx.scale(-1, 1);
+
+            const isPlayer = type === 'player';
+            const img = isPlayer ? playerWalkImage : zombieWalkImage;
+
+            if (img.complete && img.naturalWidth > 0) {
+                const totalFrames = 3;
+                const frameWidth = img.naturalWidth / totalFrames;
+                const frameHeight = img.naturalHeight;
+
+                let currentFrame = 0;
+                if (state === 'walk') {
+                    const animSpeed = type === 'zombie' ? 200 : 120;
+                    const cycle = Math.floor(frameTime / animSpeed) % 4;
+                    currentFrame = cycle === 3 ? 1 : cycle;
+                }
+
+                const sx = currentFrame * frameWidth;
+                const sy = 0;
+
+                const targetHeight = 50;
+                const dHeight = targetHeight;
+                const dWidth = (frameWidth / frameHeight) * targetHeight;
+
+                ctx.drawImage(img, sx, sy, frameWidth, frameHeight, -dWidth / 2, -dHeight, dWidth, dHeight);
+            } else {
+                let breathOffset = Math.sin(frameTime * 0.005) * 1;
+                let walkCycle = state === 'walk' ? Math.sin(frameTime * 0.01) : 0;
+                if (type === 'zombie') walkCycle = Math.sin(frameTime * 0.005);
+                let yOffset = breathOffset - (Math.abs(walkCycle) * 2);
+
+                ctx.fillStyle = isPlayer ? '#f1c27d' : '#8b9b70';
+                ctx.fillRect(-10, -34 + yOffset, 20, 34);
+            }
+
+            ctx.restore();
+        }
+
+        /**
+         * CLASSES DO JOGO
+         */
+        class Drop {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type; this.active = true; this.vy = -3;
+            }
+            update() {
+                if (this.y < 220) { this.vy += 0.5; this.y += this.vy; }
+                else { this.y = 220; }
+                if (Math.abs(player.x - this.x) < 15 && Math.abs(player.y - this.y) < 20) this.collect();
+            }
+            collect() {
+                if (this.type === 'hg_ammo') player.ammo[0] += 10;
+                if (this.type === 'sg_ammo') player.ammo[1] += 4;
+                if (this.type === 'herb') player.hp = Math.min(100, player.hp + 50);
+                ctx.fillStyle = this.type === 'herb' ? 'rgba(0,255,0,0.3)' : 'rgba(255,255,0,0.3)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                this.active = false; player.updateHUD();
+            }
+            draw(frameTime) {
+                const floatY = Math.sin(frameTime * 0.01) * 2;
+                if (this.type === 'hg_ammo') {
+                    if (hgAmmoImage.complete && hgAmmoImage.naturalWidth > 0) {
+                        ctx.drawImage(hgAmmoImage, this.x - 16, this.y - 24 + floatY, 32, 32);
+                    } else {
+                        ctx.fillStyle = '#ecc94b'; ctx.fillRect(this.x - 4, this.y - 10 + floatY, 8, 6);
+                        ctx.fillStyle = '#111'; ctx.fillText("9mm", this.x - 3, this.y - 5 + floatY);
+                    }
+                } else if (this.type === 'sg_ammo') {
+                    if (sgAmmoImage.complete && sgAmmoImage.naturalWidth > 0) {
+                        ctx.drawImage(sgAmmoImage, this.x - 16, this.y - 24 + floatY, 32, 32);
+                    } else {
+                        ctx.fillStyle = '#f56565'; ctx.fillRect(this.x - 5, this.y - 12 + floatY, 10, 8);
+                        ctx.fillStyle = '#fff'; ctx.fillRect(this.x - 3, this.y - 10 + floatY, 6, 4);
+                    }
+                } else if (this.type === 'herb') {
+                    if (herbImage.complete && herbImage.naturalWidth > 0) {
+                        ctx.drawImage(herbImage, this.x - 12, this.y - 16 + floatY, 24, 24);
+                    } else {
+                        ctx.fillStyle = '#48bb78'; ctx.fillRect(this.x - 3, this.y - 12 + floatY, 6, 12);
+                        ctx.fillRect(this.x - 6, this.y - 8 + floatY, 12, 4);
+                    }
+                }
+            }
+        }
+
+        class Player {
+            constructor() {
+                this.x = 50; this.y = 220; this.vx = 0; this.vy = 0; this.speed = 2; this.gravity = 0.5;
+                this.hp = 100; this.currentWeapon = 0; this.mag = { 0: 15, 1: 6 }; this.ammo = { 0: 30, 1: 12 };
+                this.lastShot = 0; this.isGrounded = false; this.state = 'idle';
+            }
+            switchWeapon(idx) { this.currentWeapon = idx; this.updateHUD(); }
+            update() {
+                this.vy += this.gravity; this.vx = 0; this.state = 'idle';
+
+                if (keys['a']) { this.vx = -this.speed; this.state = 'walk'; }
+                if (keys['d']) { this.vx = this.speed; this.state = 'walk'; }
+                if (keys['w'] && this.isGrounded) { this.vy = -8; this.isGrounded = false; }
+
+                this.x += this.vx; this.y += this.vy;
+                if (this.y >= 220) { this.y = 220; this.vy = 0; this.isGrounded = true; }
+                if (this.x < 10) this.x = 10;
+
+                if (zombies.length === 0) {
+                    document.getElementById('interaction-hint').style.display = 'block';
+                    if (this.x > canvas.width + 10) nextLevel();
+                } else {
+                    document.getElementById('interaction-hint').style.display = 'none';
+                    if (this.x > canvas.width - 10) this.x = canvas.width - 10;
+                }
+
+                if (mouse.x !== 0 && mouse.y !== 0) this.state = 'aiming';
+                this.updateHUD();
+            }
+            shoot() {
+                const weapon = WEAPONS[this.currentWeapon];
+                if (this.mag[this.currentWeapon] > 0 && Date.now() - this.lastShot > weapon.fireRate) {
+                    this.mag[this.currentWeapon]--; this.lastShot = Date.now();
+
+                    const isFacingRight = mouse.x > this.x;
+                    const gunTipX = this.x + (isFacingRight ? 22 : -22);
+                    const gunTipY = this.y - 32;
+
+                    const baseAngle = Math.atan2(mouse.y - gunTipY, mouse.x - gunTipX);
+                    for (let i = 0; i < weapon.pellets; i++) {
+                        let spread = (Math.random() - 0.5) * weapon.spread;
+                        projectiles.push(new Projectile(gunTipX, gunTipY, baseAngle + spread, weapon.damage));
+                    }
+                    this.x -= Math.cos(baseAngle) * (this.currentWeapon === 1 ? 6 : 3);
+                    ctx.fillStyle = 'rgba(255, 200, 100, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    for (let i = 0; i < 8; i++) {
+                        let flashSpread = (Math.random() - 0.5) * 1.5;
+                        let flashSpeed = 2 + Math.random() * 4;
+                        let px = gunTipX + Math.cos(baseAngle) * 5;
+                        let py = gunTipY + Math.sin(baseAngle) * 5;
+                        particles.push(new Particle(px, py, '#ffaa00', Math.cos(baseAngle + flashSpread) * flashSpeed, Math.sin(baseAngle + flashSpread) * flashSpeed, 0.1));
+                    }
+                }
+            }
+            reload() {
+                const weapon = WEAPONS[this.currentWeapon];
+                const reserve = this.ammo[this.currentWeapon];
+                const currentMag = this.mag[this.currentWeapon];
+                if (reserve > 0 && currentMag < weapon.magSize) {
+                    const needed = weapon.magSize - currentMag;
+                    const amount = Math.min(needed, reserve);
+                    this.mag[this.currentWeapon] += amount;
+                    this.ammo[this.currentWeapon] -= amount;
+                }
+            }
+            updateHUD() {
+                document.getElementById('weapon-display').innerText = `ARMA: ${WEAPONS[this.currentWeapon].id.toUpperCase()}`;
+                document.getElementById('weapon-display').style.color = WEAPONS[this.currentWeapon].color;
+                document.getElementById('ammo-display').innerText = `MUNIÇÃO: ${this.mag[this.currentWeapon]} / ${this.ammo[this.currentWeapon]}`;
+                const hpDisplay = document.getElementById('hp-display');
+                if (this.hp > 60) { hpDisplay.innerText = "STATUS: BEM"; hpDisplay.className = "hud-text status-fine"; }
+                else if (this.hp > 25) { hpDisplay.innerText = "STATUS: CUIDADO"; hpDisplay.className = "hud-text status-caution"; }
+                else if (this.hp > 0) { hpDisplay.innerText = "STATUS: PERIGO"; hpDisplay.className = "hud-text status-danger"; }
+                else { showGameOver(); }
+            }
+            draw(frameTime) {
+                const isFacingRight = mouse.x > this.x;
+                const animState = this.vx !== 0 ? 'walk' : 'idle';
+                drawHumanoid(ctx, this.x, this.y, isFacingRight, frameTime, 'player', animState, this.currentWeapon);
+                if (this.state === 'aiming') {
+                    const gunTipX = this.x + (isFacingRight ? 22 : -22);
+                    const gunTipY = this.y - 32;
+                    ctx.beginPath(); ctx.moveTo(gunTipX, gunTipY); ctx.lineTo(mouse.x, mouse.y);
+                    ctx.strokeStyle = this.currentWeapon === 1 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 0, 0, 0.3)';
+                    ctx.lineWidth = this.currentWeapon === 1 ? 3 : 1; ctx.stroke();
+                }
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, angle, damage) {
+                this.x = x; this.y = y; this.speed = 20;
+                this.vx = Math.cos(angle) * this.speed; this.vy = Math.sin(angle) * this.speed;
+                this.active = true; this.damage = damage;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) this.active = false;
+            }
+            draw() { ctx.fillStyle = '#ffaa00'; ctx.fillRect(this.x, this.y, 6, 2); }
+        }
+
+        class Zombie {
+            constructor(x, y, hpMult) {
+                this.x = x; this.y = y; this.hp = 100 * hpMult;
+                this.speed = 0.4 + Math.random() * (0.3 * currentLevel);
+                this.aiState = 'wander'; this.stunTimer = 0; this.attackCooldown = 0;
+            }
+            update(player) {
+                if (this.stunTimer > 0) { this.stunTimer--; return; }
+                const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
+                this.aiState = distToPlayer < 250 ? 'chase' : 'wander';
+                if (this.aiState === 'chase') {
+                    if (this.x < player.x) this.x += this.speed;
+                    if (this.x > player.x) this.x -= this.speed;
+                    if (distToPlayer < 25 && this.attackCooldown <= 0) {
+                        player.hp -= 15 + (currentLevel * 2);
+                        this.attackCooldown = 60;
+                        document.getElementById('game-wrapper').style.boxShadow = "inset 0 0 50px red";
+                        setTimeout(() => document.getElementById('game-wrapper').style.boxShadow = "0 0 50px rgba(0,0,0,0.8)", 100);
+                    }
+                }
+                if (this.attackCooldown > 0) this.attackCooldown--;
+            }
+            takeDamage(amount, knockbackDir) {
+                this.hp -= amount; this.stunTimer = 10;
+                this.x += knockbackDir * (amount > 30 ? 10 : 4);
+                for (let i = 0; i < 15; i++) particles.push(new Particle(this.x, this.y - 20, '#aa0000'));
+            }
+            draw(frameTime) {
+                const isFacingRight = player.x > this.x;
+                const animState = this.stunTimer > 0 ? 'idle' : 'walk';
+                if (this.stunTimer > 5) ctx.filter = 'brightness(2)';
+                drawHumanoid(ctx, this.x, this.y, isFacingRight, frameTime, 'zombie', animState);
+                ctx.filter = 'none';
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color, vx = null, vy = null, lifeSpeed = 0.05) {
+                this.x = x; this.y = y;
+                this.vx = vx !== null ? vx : (Math.random() - 0.5) * 6;
+                this.vy = vy !== null ? vy : (Math.random() - 1) * 6;
+                this.life = 1; this.color = color; this.lifeSpeed = lifeSpeed;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.vy += 0.3; this.life -= this.lifeSpeed; }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 3, 3);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        /**
+         * GERENCIADOR DE FASE & CENÁRIO
+         */
+        let scenerySeed = [];
+
+        function generateScenery() {
+            // Cenário agora é renderizado via imagem bg.png
+        }
+
+        function initLevel() {
+            currentState = GAME_STATE.TRANSITION;
+            document.getElementById('interaction-hint').style.display = 'none';
+
+            const overlay = document.getElementById('overlay-message');
+            overlay.innerText = `ÁREA ${currentLevel}`;
+            overlay.style.color = "white";
+            overlay.style.display = 'flex';
+
+            generateScenery();
+
+            setTimeout(() => {
+                player.x = 20;
+                zombies.length = 0; drops.length = 0; projectiles.length = 0;
+
+                let zombieCount = 2 + (currentLevel * 2);
+                for (let i = 0; i < zombieCount; i++) {
+                    zombies.push(new Zombie(150 + Math.random() * (canvas.width - 200), 220, 1 + (currentLevel * 0.2)));
+                }
+
+                document.getElementById('level-display').innerText = `ÁREA ${currentLevel}`;
+                overlay.style.display = 'none';
+                currentState = GAME_STATE.PLAYING;
+            }, 1500);
+        }
+
+        function nextLevel() { currentLevel++; initLevel(); }
+
+        function showGameOver() {
+            currentState = GAME_STATE.GAMEOVER;
+            const overlay = document.getElementById('overlay-message');
+            overlay.innerText = "VOCÊ MORREU";
+            overlay.style.color = "red";
+            overlay.style.display = 'flex';
+
+            // Botão para voltar ao menu
+            setTimeout(() => {
+                overlay.innerHTML = "VOCÊ MORREU<br><span style='font-size:30px; color:#fff; cursor:pointer; margin-top:20px;' onclick='location.reload()'>[ VOLTAR AO MENU ]</span>";
+            }, 2000);
+        }
+
+        function drawScenery(cameraOffset = player.x) {
+            if (bgImage.complete && bgImage.naturalWidth > 0) {
+                const bgWidth = canvas.height * (bgImage.width / bgImage.height);
+                const offsetX = (cameraOffset * 0.5) % bgWidth;
+
+                ctx.drawImage(bgImage, -offsetX, 0, bgWidth, canvas.height);
+                ctx.drawImage(bgImage, bgWidth - offsetX, 0, bgWidth, canvas.height);
+                if (-offsetX + bgWidth < canvas.width) {
+                    ctx.drawImage(bgImage, (bgWidth * 2) - offsetX, 0, bgWidth, canvas.height);
+                }
+            } else {
+                ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // Chão
+            ctx.fillStyle = '#141210'; ctx.fillRect(0, 220, canvas.width, canvas.height - 220);
+            ctx.fillStyle = '#221d18'; ctx.fillRect(0, 224, canvas.width, 2);
+        }
+
+        function drawLighting(cameraX = player.x) {
+            // Se estiver no menu, a luz fica no centro
+            const lightX = currentState === GAME_STATE.MENU ? canvas.width / 2 : cameraX;
+            const lightY = currentState === GAME_STATE.MENU ? canvas.height / 2 : player.y - 15;
+
+            const gradient = ctx.createRadialGradient(lightX, lightY, 30, lightX, lightY, 350);
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            gradient.addColorStop(1, `rgba(0, 0, 0, ${currentState === GAME_STATE.MENU ? 0.6 : 0.8 + (currentLevel * 0.02)})`);
+
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            for (let i = 0; i < canvas.height; i += 3) ctx.fillRect(0, i, canvas.width, 1);
+        }
+
+        /**
+         * LOOP PRINCIPAL
+         */
+        const player = new Player();
+        const zombies = [];
+        let projectiles = [];
+        let particles = [];
+        let drops = [];
+
+        // Gera cenário inicial apenas para o fundo do Menu
+        generateScenery();
+
+        function gameLoop(timestamp) {
+            if (currentState === GAME_STATE.MENU) {
+                // Efeito de câmera lenta passando pelo cenário vazio
+                menuCameraX += 0.2;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawScenery(menuCameraX);
+                drawLighting(menuCameraX);
+            }
+            else if (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.INVENTORY || currentState === GAME_STATE.TRANSITION) {
+
+                if (currentState === GAME_STATE.PLAYING) {
+                    player.update();
+                    projectiles.forEach(p => p.update()); projectiles = projectiles.filter(p => p.active);
+                    particles.forEach(p => p.update()); particles = particles.filter(p => p.life > 0);
+                    drops.forEach(d => d.update()); drops = drops.filter(d => d.active);
+
+                    zombies.forEach((z) => {
+                        z.update(player);
+                        projectiles.forEach((p) => {
+                            if (p.x > z.x - 10 && p.x < z.x + 10 && p.y > z.y - 40 && p.y < z.y) {
+                                const dir = Math.sign(p.vx);
+                                z.takeDamage(p.damage * (p.y < z.y - 25 ? 2 : 1), dir);
+                                p.active = false;
+                            }
+                        });
+                    });
+
+                    for (let i = zombies.length - 1; i >= 0; i--) {
+                        if (zombies[i].hp <= 0) {
+                            const rand = Math.random();
+                            if (rand < 0.2) drops.push(new Drop(zombies[i].x, zombies[i].y, 'hg_ammo'));
+                            else if (rand < 0.35) drops.push(new Drop(zombies[i].x, zombies[i].y, 'sg_ammo'));
+                            else if (rand < 0.45) drops.push(new Drop(zombies[i].x, zombies[i].y, 'herb'));
+                            zombies.splice(i, 1);
+                        }
+                    }
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (currentState !== GAME_STATE.TRANSITION) {
+                    drawScenery(player.x);
+                    drops.forEach(d => d.draw(timestamp));
+                    zombies.forEach(z => z.draw(timestamp));
+                    player.draw(timestamp);
+                    projectiles.forEach(p => p.draw());
+                    particles.forEach(p => p.draw());
+                    drawLighting(player.x);
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+
+</html>
