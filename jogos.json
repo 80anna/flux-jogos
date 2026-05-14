@@ -70,5 +70,11 @@
         "autor": "Lucas",
         "arquivo": "thebindingofisaac.html",
         "imagem": "jogos/assets/thebindingofisaac.png"
+    },
+    {
+        "nome": "Morador do Mal",
+        "autor": "David",
+        "arquivo": "moradordomal.html",
+        "imagem": "jogos/assets/capa_moradordomal.png"
     }
 ]
