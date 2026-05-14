@@ -76,5 +76,11 @@
         "autor": "David",
         "arquivo": "moradordomal.html",
         "imagem": "jogos/assets/capa_moradordomal.png"
+    },
+    {
+        "nome": "HP e Câmara Secreta",
+        "autor": "David",
+        "arquivo": "hptcos.html",
+        "imagem": "jogos/assets/capa_hp.png"
     }
 ]
