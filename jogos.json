@@ -88,6 +88,11 @@
         "autor": "Matheus",
         "arquivo": "hackandfds.html",
         "imagem": "jogos/assets/HackAndFds.png"
+    },
+    {
+        "nome": "Sinuca Pro Multiplayer",
+        "autor": "bernardoAzevedo",
+        "arquivo": "sinucaProMultiplayer.html",
+        "imagem": "jogos/assets/sinucaProMultiplayer.png"
     }
-
 ]
