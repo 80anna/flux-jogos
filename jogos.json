@@ -94,5 +94,17 @@
         "autor": "bernardoAzevedo",
         "arquivo": "sinucaProMultiplayer.html",
         "imagem": "jogos/assets/sinucaProMultiplayer.png"
+    },
+    {
+        "nome": "Castelo da Vania",
+        "autor": "David",
+        "arquivo": "castelo.html",
+        "imagem": "jogos/assets/capa_castelo.png"
+    },
+    {
+        "nome": "Gaita do Tempo",
+        "autor": "David",
+        "arquivo": "gaita.html",
+        "imagem": "jogos/assets/capa_gaita.png"
     }
 ]
