@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESQUADRÃO DA CRUELDADE</title>
+    <style>
+    @font-face {
+        font-family: 'PAPYRUS';
+        src: URL('assets/esquadraoDaCrueldade/papyrus.ttf') format('truetype');
+    }
+
+    body,
+    html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #050d02;
+        font-family: 'PAPYRUS';
+        user-select: none;
+    }
+
+    #custom-frame {
+        position: absolute;
+        top: -2vh;
+        left: -2vw;
+        width: 104vw;
+        height: 104vh;
+        pointer-events: none;
+        z-index: 10;
+        object-fit: fill;
+    }
+
+    #canvas-container {
+        width: 100vw;
+        height: 100vh;
+    }
+
+    /* Indicador de vida */
+    #hp-container {
+        position: absolute;
+        top: 60px;
+        left: 70px;
+        width: 300px;
+        height: 300px;
+        z-index: 20;
+        pointer-events: none;
+        animation: pulse 1s infinite alternate ease-in-out;
+    }
+
+    #hp-texture {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    #hp-tint {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgb(0, 255, 0);
+        mix-blend-mode: multiply;
+
+        -webkit-mask-image: url('assets/esquadraoDaCrueldade/vida.png');
+        -webkit-mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-image: url('assets/esquadraoDaCrueldade/vida.png');
+        mask-size: contain;
+        mask-repeat: no-repeat;
+    }
+
+    #hp-text {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-end;
+        padding-right: 10px;
+        padding-bottom: 20px;
+        box-sizing: border-box;
+        font-size: 72px;
+        color: rgb(0, 255, 0);
+        z-index: 2;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(0.95); }
+        100% { transform: scale(1.1); }
+    }
+
+    #crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 10px;
+        height: 10px;
+        transform: translate(-50%, -50%);
+        border: 2px solid #ff00ff;
+        pointer-events: none;
+        z-index: 20;
+    }
+
+    #menu {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        background: rgba(25, 5, 30, 0.9);
+        border: 6px double #ff0000;
+        padding: 40px;
+        color: #00ff00;
+        cursor: pointer;
+        z-index: 30;
+    }
+
+    #menu h1 {
+        color: #ff00ff;
+        margin-top: 0;
+        text-shadow: 3px 3px #00ff00;
+        font-size: 48px;
+    }
+
+    #game-over {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: red;
+        font-size: 56px;
+        font-weight: bold;
+        display: none;
+        text-shadow: 4px 4px black;
+        z-index: 30;
+    }
+
+    #ammo-container {
+        position: absolute;
+        bottom: 80px;
+        left: 40px;
+        display: flex;
+        align-items: center;
+        font-size: 48px;
+        color: #00ff00;
+        text-shadow: 2px 2px #ff00ff;
+        pointer-events: none;
+        z-index: 20;
+    }
+
+    #ammo-icon {
+        width: 90px;
+        height: 90px;
+        margin: 0 25px;
+        transition: transform 0.05s linear;
+    }
+
+    #reload-container {
+        position: absolute;
+        right: 300px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 500px;
+        background: #00ff00;
+        display: none;
+        z-index: 20;
+    }
+
+    #reload-thumb {
+        position: absolute;
+        top: 0%;
+        left: -38px;
+        width: 80px;
+        height: 80px;
+        transform: translateY(-50%);
+        pointer-events: none;
+    }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+</head>
+
+<body>
+    <img id="custom-frame" src="assets/esquadraoDaCrueldade/moldura.png" alt="">
+    <div id="hp-container">
+        <img id="hp-texture" src="assets/esquadraoDaCrueldade/vida.png" alt="">
+        <div id="hp-tint"></div>
+        <div id="hp-text">100</div>
+    </div>
+    <div id="canvas-container"></div>
+    <div id="crosshair"></div>
+    <div id="ammo-container">
+        <span id="ammo-mag">12</span>
+        <img id="ammo-icon" src="assets/esquadraoDaCrueldade/municao.png" alt="">
+        <span id="ammo-reserve">48</span>
+    </div>
+    <div id="reload-container">
+        <img id="reload-thumb" src="assets/esquadraoDaCrueldade/municao.png" alt="">
+    </div>
+    <div id="menu">
+        <h1>ESQUADRÃO DA CRUELDADE</h1>
+        <p>CLIQUE PARA EXPLORAR A ESCÓRIA</p>
+        <p style="font-size: 16px; color: #aaa; font-family: monospace;">CONTROLES</p>
+        <p style="font-size: 16px; color: #aaa; font-family: monospace;">WASD PARA SE MOVER + ESPAÇO PARA PULAR</p>
+        <p style="font-size: 16px; color: #aaa; font-family: monospace;">MOUSE: ATIRAR + RECARREGAR (BOTÃO DIREITO + MOVER PARA BAIXO)</p>
+    </div>
+    <div id="game-over">
+        CONTRATO FRACASSADO<br>
+        <span style="font-size: 24px; color: #fff;">Pressione F5 para tentar novamente</span>
+    </div>
+    
+    <script>
+    const container = document.getElementById('canvas-container');
+    const menu = document.getElementById('menu');
+    const gameOverScreen = document.getElementById('game-over');
+
+    const hpText = document.getElementById('hp-text');
+    const hpTint = document.getElementById('hp-tint');
+    const hpContainer = document.getElementById('hp-container');
+
+    // --- Sistema de Áudio ---
+    const bgMusic = new Audio('assets/esquadraoDaCrueldade/musica.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.4;
+
+    const sfxShoot = new Audio('assets/esquadraoDaCrueldade/tiro.mp3');
+    sfxShoot.volume = 0.6;
+
+    const sfxJump = new Audio('assets/esquadraoDaCrueldade/pulo.mp3');
+    sfxJump.volume = 0.5;
+
+    let scene, camera, renderer, controls;
+    let player = { hp: 100, speed: 0.15 }; // Movimento um pouco mais rápido para o mapa gigante
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+
+    // --- Variáveis de Pulo ---
+    let velocityY = 0;
+    let canJump = true;
+    const gravity = 0.008;
+    const jumpStrength = 0.4;
+
+    // --- Variáveis da Arma ---
+    let gunGroup, muzzleFlashMesh, muzzleLight, muzzlePoint;
+    const gunIdlePos = new THREE.Vector3(0.4, -0.3, -0.8);
+    const gunIdleRot = new THREE.Euler(0, 0, 0);
+
+    let bullets = [];
+    let clock = new THREE.Clock();
+
+    // --- Áudio de Recarga ---
+    const sfxReload = new Audio('assets/esquadraoDaCrueldade/recarregar.mp3');
+    sfxReload.volume = 0.7;
+
+    // --- Variáveis de Munição ---
+    const maxMag = 12;
+    let ammoMag = 12;
+    let ammoReserve = 48;
+    let ammoRotation = 0;
+
+    let lastShotTime = 0;
+    const fireCooldown = 150; 
+
+    // --- Lógica do Slider ---
+    let isReloading = false;
+    let reloadProgress = 0; 
+
+    const ammoMagDisplay = document.getElementById('ammo-mag');
+    const ammoReserveDisplay = document.getElementById('ammo-reserve');
+    const ammoIcon = document.getElementById('ammo-icon');
+    const reloadContainer = document.getElementById('reload-container');
+    const reloadThumb = document.getElementById('reload-thumb');
+
+    function updateHealthUI() {
+        let displayHp = Math.max(0, player.hp);
+        hpText.innerText = displayHp;
+
+        let r = Math.floor(255 * (1 - (displayHp / 100)));
+        let g = Math.floor(255 * (displayHp / 100));
+
+        hpTint.style.backgroundColor = `rgb(${r}, ${g}, 0)`;
+        hpText.style.color = `rgb(${r}, ${g}, 0)`;
+
+        let pulseSpeed = 0.2 + (displayHp / 100) * 0.8;
+        hpContainer.style.animationDuration = `${pulseSpeed}s`;
+    }
+
+    function createWeirdTexture(color1, color2) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        for (let x = 0; x < 64; x += 8) {
+            for (let y = 0; y < 64; y += 8) {
+                ctx.fillStyle = (x + y) % 16 === 0 ? color1 : color2;
+                ctx.fillRect(x, y, 8, 8);
+            }
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        return texture;
+    }
+
+    function buildGun() {
+        gunGroup = new THREE.Group();
+
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2b2b2b });
+        const silencerMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+
+        const gripGeo = new THREE.BoxGeometry(0.06, 0.15, 0.08);
+        const gripMesh = new THREE.Mesh(gripGeo, bodyMat);
+        gripMesh.position.set(0, -0.08, 0.05);
+        gripMesh.rotation.x = Math.PI / 8;
+
+        const slideGeo = new THREE.BoxGeometry(0.06, 0.08, 0.50);
+        const slideMesh = new THREE.Mesh(slideGeo, bodyMat);
+        slideMesh.position.set(0, 0.04, -0.05);
+
+        const barrelGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.4, 16);
+        barrelGeo.rotateX(Math.PI / 2);
+        const barrelMesh = new THREE.Mesh(barrelGeo, silencerMat);
+        barrelMesh.position.set(0, 0.04, -0.35);
+
+        gunGroup.add(gripMesh);
+        gunGroup.add(slideMesh);
+        gunGroup.add(barrelMesh);
+
+        muzzlePoint = new THREE.Object3D();
+        muzzlePoint.position.set(0, 0.04, -0.55);
+        gunGroup.add(muzzlePoint);
+
+        const flashGeo = new THREE.IcosahedronGeometry(0.06, 0);
+        const flashMat = new THREE.MeshBasicMaterial({
+            color: 0xffddaa, wireframe: true, transparent: true, opacity: 0
+        });
+        muzzleFlashMesh = new THREE.Mesh(flashGeo, flashMat);
+        muzzleFlashMesh.position.copy(muzzlePoint.position);
+
+        muzzleLight = new THREE.PointLight(0xffddaa, 0, 2);
+        muzzleLight.position.copy(muzzlePoint.position);
+
+        gunGroup.add(muzzleFlashMesh);
+        gunGroup.add(muzzleLight);
+
+        gunGroup.position.copy(gunIdlePos);
+        camera.add(gunGroup);
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        // A fog verde tóxica
+        scene.fog = new THREE.FogExp2(0x1a2e05, 0.015);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1500);
+        camera.position.y = 2;
+
+        buildGun();
+        scene.add(camera);
+
+        renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        controls = new THREE.PointerLockControls(camera, document.body);
+
+        menu.addEventListener('click', () => {
+            controls.lock();
+            bgMusic.play().catch(e => console.log("Áudio bloqueado."));
+        });
+
+        controls.addEventListener('lock', () => menu.style.display = 'none');
+        controls.addEventListener('unlock', () => { if (player.hp > 0) menu.style.display = 'block'; });
+
+        setupInput();
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffaa55, 0.8);
+        dirLight.position.set(100, 200, 50);
+        scene.add(dirLight);
+
+        buildMap();
+        createSkybox();
+        spawnTrees(300); // Espalha 300 árvores bizarras
+
+        window.addEventListener('resize', onWindowResize);
+
+        updateHealthUI();
+        animate();
+    }
+
+    function buildMap() {
+        const floorTex = createWeirdTexture('#224411', '#112205');
+        // Repete a textura pelo mapa gigante
+        floorTex.wrapS = THREE.RepeatWrapping;
+        floorTex.wrapT = THREE.RepeatWrapping;
+        floorTex.repeat.set(100, 100);
+
+        // Mapa muito maior
+        const floorGeo = new THREE.PlaneGeometry(1000, 1000);
+        const floorMat = new THREE.MeshLambertMaterial({ map: floorTex, side: THREE.DoubleSide });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = Math.PI / 2;
+        scene.add(floor);
+    }
+
+    function createSkybox() {
+        // Céu cor de carne opressivo
+        const skyTex = createWeirdTexture('#ff0055', '#440011');
+        skyTex.wrapS = THREE.RepeatWrapping;
+        skyTex.wrapT = THREE.RepeatWrapping;
+        skyTex.repeat.set(20, 20); // Uma repetição densa para gerar desconforto
+        
+        // Esfera gigante com a textura projetada por dentro (BackSide)
+        const skyGeo = new THREE.SphereGeometry(600, 32, 32);
+        const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(sky);
+    }
+
+    function spawnTrees(count) {
+        // Texturas das árvores (vibe alienígena/nauseante)
+        const trunkTex = createWeirdTexture('#4a1a1a', '#260a0a'); 
+        const leavesTex = createWeirdTexture('#00ffcc', '#ff00ff');
+
+        const trunkMat = new THREE.MeshLambertMaterial({ map: trunkTex });
+        const leavesMat = new THREE.MeshLambertMaterial({ map: leavesTex });
+
+        for (let i = 0; i < count; i++) {
+            const tree = new THREE.Group();
+
+            // Posição aleatória em grande parte do mapa
+            const x = (Math.random() - 0.5) * 800;
+            const z = (Math.random() - 0.5) * 800;
+            
+            // Evita spawnar bem no centro onde o jogador nasce
+            if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
+
+            // Tronco
+            const height = 8 + Math.random() * 8; // Entre 4 e 12 de altura
+            const trunkGeo = new THREE.CylinderGeometry(0.5, 0.8, height, 6);
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.position.y = height / 2;
+            tree.add(trunk);
+
+            // Folhas / Galhos
+            const numLeaves = 3 + Math.floor(Math.random() * 4);
+            for (let j = 0; j < numLeaves; j++) {
+                const leafSize = 1.5 + Math.random() * 2.5;
+                const leafGeo = new THREE.IcosahedronGeometry(leafSize, 0); // Low-poly esquisito
+                const leaf = new THREE.Mesh(leafGeo, leavesMat);
+                
+                // Distribui os blocos de folhas pelo topo do tronco
+                leaf.position.set(
+                    (Math.random() - 0.5) * 3,
+                    height - 1 + (Math.random() * 4),
+                    (Math.random() - 0.5) * 3
+                );
+                
+                // Rotaciona as folhas aleatoriamente para não parecerem repetitivas
+                leaf.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                tree.add(leaf);
+            }
+
+            tree.position.set(x, 0, z);
+            
+            // Torta e distorcida
+            tree.rotation.x = (Math.random() - 0.5) * 0.2;
+            tree.rotation.z = (Math.random() - 0.5) * 0.2;
+
+            scene.add(tree);
+        }
+    }
+
+    function setupInput() {
+        document.addEventListener('keydown', (e) => {
+            switch (e.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'Space':
+                    if (canJump && controls.isLocked && player.hp > 0) {
+                        velocityY = jumpStrength;
+                        canJump = false;
+                        sfxJump.currentTime = 0;
+                        sfxJump.play().catch(() => {});
+                    }
+                    break;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        });
+
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        document.addEventListener('mousedown', (e) => {
+            if (!controls.isLocked || player.hp <= 0) return;
+
+            if (e.button === 0) {
+                playerShoot();
+            } else if (e.button === 2) {
+                if (ammoMag < maxMag && ammoReserve > 0) {
+                    isReloading = true;
+                    reloadProgress = 0;
+                    reloadContainer.style.display = 'block';
+                    reloadThumb.style.top = '0%';
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 2) {
+                isReloading = false;
+                reloadContainer.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isReloading) {
+                if (e.movementY > 0) {
+                    reloadProgress += e.movementY * 0.8;
+
+                    if (reloadProgress >= 100) {
+                        reloadProgress = 100;
+                        finishReload();
+                    }
+                    reloadThumb.style.top = `${reloadProgress}%`;
+                }
+            }
+        });
+    }
+
+    function playerShoot() {
+        const now = Date.now();
+        if (now - lastShotTime < fireCooldown) return;
+
+        if (ammoMag <= 0 || isReloading) return;
+
+        lastShotTime = now;
+        ammoMag--;
+        ammoMagDisplay.innerText = ammoMag;
+
+        ammoRotation += 90;
+        ammoIcon.style.transform = `rotate(${ammoRotation}deg)`;
+
+        sfxShoot.preservesPitch = false;
+        sfxShoot.playbackRate = 0.5 + (ammoMag / maxMag) * 0.6;
+
+        sfxShoot.currentTime = 0;
+        sfxShoot.play().catch(() => {});
+
+        muzzleFlashMesh.material.opacity = 0.6;
+        muzzleFlashMesh.rotation.z = Math.random() * Math.PI;
+        muzzleLight.intensity = 1.5;
+
+        gunGroup.position.z += 0.08;
+        gunGroup.rotation.x += 0.1;
+        gunGroup.rotation.y += (Math.random() - 0.5) * 0.05;
+
+        const bulletGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.4, 4);
+        bulletGeo.rotateX(Math.PI / 2);
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffff55 });
+        const bullet = new THREE.Mesh(bulletGeo, bulletMat);
+
+        const spawnPos = new THREE.Vector3();
+        muzzlePoint.getWorldPosition(spawnPos);
+        bullet.position.copy(spawnPos);
+
+        const targetPos = new THREE.Vector3(0, 0, -100);
+        targetPos.applyMatrix4(camera.matrixWorld);
+
+        bullet.lookAt(targetPos);
+
+        const direction = new THREE.Vector3().subVectors(targetPos, spawnPos).normalize();
+
+        bullet.userData = {
+            dir: direction,
+            speed: 1.2,
+            life: 80 // Vive um pouco mais já que o mapa é enorme
+        };
+
+        scene.add(bullet);
+        bullets.push(bullet);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (!controls.isLocked || player.hp <= 0) return;
+
+        gunGroup.position.lerp(gunIdlePos, 0.1);
+        gunGroup.rotation.x = THREE.MathUtils.lerp(gunGroup.rotation.x, gunIdleRot.x, 0.1);
+        gunGroup.rotation.y = THREE.MathUtils.lerp(gunGroup.rotation.y, gunIdleRot.y, 0.1);
+
+        if (muzzleFlashMesh.material.opacity > 0) {
+            muzzleFlashMesh.material.opacity -= 0.1;
+            muzzleLight.intensity -= 0.2;
+        }
+
+        if (moveForward) controls.moveForward(player.speed);
+        if (moveBackward) controls.moveForward(-player.speed);
+        if (moveLeft) controls.moveRight(-player.speed);
+        if (moveRight) controls.moveRight(player.speed);
+
+        camera.position.y += velocityY;
+        if (camera.position.y > 2) {
+            velocityY -= gravity;
+        } else {
+            camera.position.y = 2;
+            velocityY = 0;
+            canJump = true;
+        }
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            b.position.addScaledVector(b.userData.dir, b.userData.speed);
+            b.userData.life--;
+
+            if (b.userData.life <= 0) {
+                scene.remove(b);
+                bullets.splice(i, 1);
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function finishReload() {
+        sfxReload.currentTime = 0;
+        sfxReload.play().catch(() => {});
+
+        const bulletsNeeded = maxMag - ammoMag;
+        const bulletsToTransfer = Math.min(bulletsNeeded, ammoReserve);
+
+        ammoMag += bulletsToTransfer;
+        ammoReserve -= bulletsToTransfer;
+
+        ammoMagDisplay.innerText = ammoMag;
+        ammoReserveDisplay.innerText = ammoReserve;
+
+        isReloading = false;
+        reloadContainer.style.display = 'none';
+    }
+
+    init();
+    </script>
+</body>
+
+</html>

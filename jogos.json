@@ -69,7 +69,7 @@
         "nome": "The Binding of Isaac",
         "autor": "Lucas",
         "arquivo": "thebindingofisaac.html",
-        "imagem": "jogos/assets/thebindingofisaac.png"
+        "imagem": "jogos/assets/thebindingofisaac/capa.png"
     },
     {
         "nome": "Morador do Mal",
@@ -106,5 +106,11 @@
         "autor": "David",
         "arquivo": "gaita.html",
         "imagem": "jogos/assets/capa_gaita.png"
+    },
+    {
+        "nome": "Esquadrão da Crueldade",
+        "autor": "Lucas",
+        "arquivo": "esquadraoDaCrueldade.html",
+        "imagem": "jogos/assets/esquadraoDaCrueldade/capa.png"
     }
 ]
