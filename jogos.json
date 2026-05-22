@@ -112,5 +112,11 @@
         "autor": "Lucas",
         "arquivo": "esquadraoDaCrueldade.html",
         "imagem": "jogos/assets/esquadraoDaCrueldade/capa.png"
+    },
+    {
+        "nome": "Sandbox Maneiro (Incompleto)",
+        "autor": "Lucas",
+        "arquivo": "sandboxManeiro.html",
+        "imagem" : ""
     }
 ]
