@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Sandbox Maneiro</title>
+    <title>Sandbox Maneiro - Biomas & Crafting</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #111; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; overflow: hidden; }
@@ -12,124 +12,156 @@
         button, input { padding: 8px 12px; margin: 0 5px; border-radius: 4px; border: none; font-size: 14px; }
         button { background: #4CAF50; color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
         button:hover { background: #45a049; }
+        .btn-craft { background: #FF9800; font-size: 12px; padding: 5px 8px; margin: 2px; }
+        .btn-craft:hover { background: #e68a00; }
         input { background: #333; color: white; border: 1px solid #555; }
-        .bloco-select { display: inline-block; width: 30px; height: 30px; margin: 0 5px; border: 3px solid transparent; cursor: pointer; vertical-align: middle; border-radius: 4px; }
-        .selecionado { border-color: #ffeb3b; transform: scale(1.1); }
-        #menu-inicial { display: flex; justify-content: center; align-items: center; gap: 10px; }
+        
+        #painel-blocos { display: none; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; margin-top: 10px;}
+        #painel-crafting { display: none; background: #333; padding: 10px; border-radius: 6px; margin-top: 10px; justify-content: center; gap: 10px; flex-wrap: wrap;}
+        
+        .bloco-select { display: inline-block; width: 34px; height: 34px; border: 3px solid transparent; cursor: pointer; border-radius: 4px; position: relative; background-size: cover;}
+        .selecionado { border-color: #ffeb3b; transform: scale(1.1); z-index: 10;}
+        .contador-inv { position: absolute; bottom: -5px; right: -5px; background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+        #menu-inicial { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;}
     </style>
 </head>
 
 <body>
     <div id="ui">
         <div id="menu-inicial">
-            <button onclick="criarServidor()">🌍 Criar Novo Mundo (Host)</button>
+            <input type="text" id="nome-jogador" placeholder="Seu Nickname" value="Jogador">
+            <span style="color: #555;">|</span>
+            <button onclick="criarServidor()">🛠️ Criar Novo Mundo</button>
             <span style="color: #888;"> OU </span>
-            <input type="text" id="id-host" placeholder="Cole o ID do Host aqui">
-            <button onclick="entrarNoMundo()" style="background: #2196F3;">🤝 Entrar no Mundo</button>
+            <input type="text" id="id-host" placeholder="Cole o ID do Host">
+            <button onclick="entrarNoMundo()" style="background: #2196F3;">🌍 Entrar</button>
         </div>
+        
         <div id="info-rede" style="display:none; justify-content: space-between; align-items: center;">
             <div>
-                ID do Mundo: <b id="meu-id" style="color:#4CAF50; user-select: all; background: #000; padding: 3px 8px; border-radius: 4px;">Gerando...</b>
+                ID: <b id="meu-id" style="color:#4CAF50; user-select: all; background: #000; padding: 3px 8px; border-radius: 4px;">Gerando...</b>
                 <span style="color: #888; margin-left: 10px;">Jogadores: <b id="qtd-jogadores">1</b></span>
             </div>
-            <div>
-                <button onclick="iniciarMusica()" style="background: #E91E63;">🎵 Tocar Música</button>
-            </div>
+            <div id="status-musica" style="color: #E91E63; font-weight: bold; font-size: 12px;">🎵 Música On</div>
         </div>
-        <div style="margin-top: 15px; display: none; align-items: center; justify-content: center;" id="painel-blocos">
-            <span style="font-size: 12px; margin-right: 15px; color: #aaa;">[WASD/Setas] Mover & Pular | [Mouse Esq] Colocar | [Mouse Dir] Quebrar</span>
-            <div class="bloco-select selecionado" id="sel-1" onclick="escolherBloco(1, this)"></div>
-            <div class="bloco-select" id="sel-2" onclick="escolherBloco(2, this)"></div>
-            <div class="bloco-select" id="sel-3" onclick="escolherBloco(3, this)"></div>
-            <div class="bloco-select" id="sel-4" onclick="escolherBloco(4, this)"></div>
-            <div class="bloco-select" id="sel-5" onclick="escolherBloco(5, this)"></div>
+
+        <div id="painel-blocos">
+            <div style="width: 100%; font-size: 12px; color: #aaa; margin-bottom: 5px;">[WASD] Mover | [Esq] Quebrar | [Dir] Colocar</div>
+        </div>
+
+        <div id="painel-crafting">
+            <span style="font-size: 12px; color: #ffeb3b; font-weight: bold;">🔨 Crafting:</span>
+            <button class="btn-craft" onclick="craftar('madeira', 2, 'tabua', 4)">2 Madeira ➔ 4 Tábuas</button>
+            <button class="btn-craft" onclick="craftar('pedra', 4, 'tijolo_pedra', 4)">4 Pedra ➔ 4 Tijolos</button>
+            <button class="btn-craft" onclick="craftar('areia', 2, 'vidro', 1)">2 Areia ➔ 1 Vidro</button>
+            <button class="btn-craft" onclick="craftar('neve', 4, 'gelo', 1)">4 Neve ➔ 1 Gelo</button>
         </div>
     </div>
-    <canvas id="jogo" width="800" height="500"></canvas>
+    
+    <canvas id="jogo" width="800" height="450"></canvas>
+    
     <script>
-    // --- 1. CONFIGURAÇÕES E CÂMERA ---
     const canvas = document.getElementById('jogo');
     const ctx = canvas.getContext('2d');
     const TAM_BLOCO = 20;
-    const LARGURA_MUNDO = 2000; // 200 * 20 = 4000 pixels de largura
-    const ALTURA_MUNDO = 1000; // 100 * 20 = 2000 pixels de altura
+    const LARGURA_MUNDO = 2000;
+    const ALTURA_MUNDO = 1000;
 
     let camera = { x: 0, y: 0 };
     let mundo = [];
     let jogadores = {};
+    let drops = {};
+    let nuvens = [];
     let meuId = null;
-    let blocoAtual = 1;
+    let blocoAtual = 'terra';
 
-    // --- 2. GERADOR DE TEXTURAS PROCEDURAIS ---
-    // Criamos texturas em memória para não depender de arquivos de imagem externos
+    // Lista mestra de todos os blocos do jogo
+    const TIPOS_BLOCOS = [
+        'terra', 'grama', 'pedra', 'madeira', 'folha', 
+        'areia', 'cacto', 'neve', 'gelo', 'madeira_selva', 
+        'folha_selva', 'tabua', 'tijolo_pedra', 'vidro'
+    ];
+
+    let inventario = {};
+    TIPOS_BLOCOS.forEach(b => inventario[b] = 0);
+
     const texturas = {};
 
-    function criarTextura(id, renderCmds) {
+    function criarTextura(nomeId, renderCmds) {
         let c = document.createElement('canvas');
         c.width = TAM_BLOCO;
         c.height = TAM_BLOCO;
         let cx = c.getContext('2d');
         renderCmds(cx);
-        texturas[id] = c;
-        // Atualiza a UI para mostrar a textura
-        const sel = document.getElementById(`sel-${id}`);
-        if (sel) sel.style.backgroundImage = `url(${c.toDataURL()})`;
+        texturas[nomeId] = c;
     }
 
     function inicializarTexturas() {
-        // 1: Terra (Marrom com ruído)
-        criarTextura(1, (cx) => {
-            cx.fillStyle = '#5d4037';
-            cx.fillRect(0, 0, 20, 20);
-            cx.fillStyle = '#4e342e';
-            cx.fillRect(2, 2, 4, 4);
-            cx.fillRect(12, 14, 4, 4);
-            cx.fillRect(14, 4, 2, 2);
-        });
-        // 2: Grama (Terra embaixo, verde em cima)
-        criarTextura(2, (cx) => {
-            cx.fillStyle = '#5d4037';
-            cx.fillRect(0, 0, 20, 20);
-            cx.fillStyle = '#4CAF50';
-            cx.fillRect(0, 0, 20, 6);
-            cx.fillStyle = '#388E3C';
-            cx.fillRect(2, 6, 4, 2);
-            cx.fillRect(12, 6, 4, 2);
-            cx.fillRect(16, 4, 4, 4);
-        });
-        // 3: Pedra (Cinza com textura dura)
-        criarTextura(3, (cx) => {
-            cx.fillStyle = '#757575';
-            cx.fillRect(0, 0, 20, 20);
-            cx.fillStyle = '#616161';
-            cx.fillRect(0, 0, 20, 2);
-            cx.fillRect(0, 0, 2, 20);
-            cx.fillStyle = '#424242';
-            cx.fillRect(18, 0, 2, 20);
-            cx.fillRect(0, 18, 20, 2);
-            cx.fillStyle = '#9e9e9e';
-            cx.fillRect(4, 4, 4, 4);
-            cx.fillRect(12, 10, 4, 4);
-        });
-        // 4: Madeira (Tronco de árvore)
-        criarTextura(4, (cx) => {
-            cx.fillStyle = '#795548';
-            cx.fillRect(0, 0, 20, 20);
-            cx.fillStyle = '#5D4037';
-            cx.fillRect(4, 0, 2, 20);
-            cx.fillRect(12, 0, 2, 20);
-            cx.fillRect(8, 0, 1, 20);
-        });
-        // 5: Folhas (Verde translúcido)
-        criarTextura(5, (cx) => {
-            cx.fillStyle = 'rgba(76, 175, 80, 0.8)';
-            cx.fillRect(0, 0, 20, 20);
-            cx.fillStyle = 'rgba(56, 142, 60, 0.9)';
-            cx.fillRect(2, 2, 6, 6);
-            cx.fillRect(12, 10, 6, 6);
+        // Floresta Básica
+        criarTextura('terra', (cx) => { cx.fillStyle = '#5d4037'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#4e342e'; cx.fillRect(2, 2, 4, 4); cx.fillRect(12, 14, 4, 4); });
+        criarTextura('grama', (cx) => { cx.fillStyle = '#5d4037'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#4CAF50'; cx.fillRect(0, 0, 20, 6); });
+        criarTextura('pedra', (cx) => { cx.fillStyle = '#757575'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#616161'; cx.fillRect(0, 0, 20, 2); cx.fillStyle = '#424242'; cx.fillRect(18, 0, 2, 20); });
+        criarTextura('madeira', (cx) => { cx.fillStyle = '#795548'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#5D4037'; cx.fillRect(4, 0, 2, 20); cx.fillRect(12, 0, 2, 20); });
+        criarTextura('folha', (cx) => { cx.fillStyle = 'rgba(76, 175, 80, 0.85)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = 'rgba(56, 142, 60, 0.9)'; cx.fillRect(2, 2, 6, 6); });
+        
+        // Deserto
+        criarTextura('areia', (cx) => { cx.fillStyle = '#EEDD82'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#DAA520'; cx.fillRect(3, 3, 2, 2); cx.fillRect(14, 10, 2, 2); });
+        criarTextura('cacto', (cx) => { cx.fillStyle = '#2E8B57'; cx.fillRect(2, 0, 16, 20); cx.fillStyle = '#006400'; cx.fillRect(6, 0, 2, 20); cx.fillRect(12, 0, 2, 20); });
+        
+        // Tundra
+        criarTextura('neve', (cx) => { cx.fillStyle = '#FFFAFA'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#E0FFFF'; cx.fillRect(0, 16, 20, 4); });
+        criarTextura('gelo', (cx) => { cx.fillStyle = 'rgba(173, 216, 230, 0.7)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = 'rgba(255, 255, 255, 0.5)'; cx.fillRect(2, 2, 16, 2); cx.fillRect(2, 2, 2, 16); });
+        
+        // Selva
+        criarTextura('madeira_selva', (cx) => { cx.fillStyle = '#4A3728'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#3E2723'; cx.fillRect(6, 0, 4, 20); });
+        criarTextura('folha_selva', (cx) => { cx.fillStyle = 'rgba(34, 139, 34, 0.9)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = 'rgba(0, 100, 0, 0.8)'; cx.fillRect(4, 4, 8, 8); });
+        
+        // Craftados
+        criarTextura('tabua', (cx) => { cx.fillStyle = '#DEB887'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#8B4513'; cx.fillRect(0, 4, 20, 1); cx.fillRect(0, 10, 20, 1); cx.fillRect(0, 16, 20, 1); });
+        criarTextura('tijolo_pedra', (cx) => { cx.fillStyle = '#808080'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#555'; cx.fillRect(0, 9, 20, 2); cx.fillRect(9, 0, 2, 10); cx.fillRect(15, 10, 2, 10); cx.fillRect(4, 10, 2, 10); });
+        criarTextura('vidro', (cx) => { cx.fillStyle = 'rgba(200, 255, 255, 0.3)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#888'; cx.strokeRect(0, 0, 20, 20); cx.fillStyle = 'rgba(255, 255, 255, 0.6)'; cx.fillRect(4, 4, 6, 2); cx.fillRect(4, 4, 2, 6); });
+
+        // Gerar o menu de blocos na UI dinamicamente
+        const painelBlocos = document.getElementById('painel-blocos');
+        TIPOS_BLOCOS.forEach(id => {
+            let div = document.createElement('div');
+            div.className = 'bloco-select' + (id === 'terra' ? ' selecionado' : '');
+            div.id = 'sel-' + id;
+            div.style.backgroundImage = `url(${texturas[id].toDataURL()})`;
+            div.onclick = () => escolherBloco(id, div);
+            
+            let span = document.createElement('span');
+            span.className = 'contador-inv';
+            span.id = 'inv-' + id;
+            span.innerText = '0';
+            
+            div.appendChild(span);
+            painelBlocos.appendChild(div);
         });
     }
     inicializarTexturas();
+
+    // Sistema de Crafting
+    function craftar(ingrediente, qtdNecessaria, resultado, qtdResultado) {
+        if (inventario[ingrediente] >= qtdNecessaria) {
+            atualizarInventario(ingrediente, -qtdNecessaria);
+            atualizarInventario(resultado, qtdResultado);
+        } else {
+            // Efeito visual de falha (piscar vermelho)
+            let el = document.getElementById('inv-' + ingrediente).parentElement;
+            el.style.borderColor = 'red';
+            setTimeout(() => el.style.borderColor = (blocoAtual === ingrediente) ? '#ffeb3b' : 'transparent', 300);
+        }
+    }
+
+    for (let i = 0; i < 60; i++) {
+        nuvens.push({
+            x: Math.random() * LARGURA_MUNDO * TAM_BLOCO,
+            y: Math.random() * 200,
+            velocidade: 0.1 + Math.random() * 0.3,
+            tamanho: 40 + Math.random() * 60
+        });
+    }
 
     function escolherBloco(id, el) {
         blocoAtual = id;
@@ -137,68 +169,104 @@
         el.classList.add('selecionado');
     }
 
-    // --- 3. GERAÇÃO DE TERRENO (RELEVO E CAVERNAS) ---
+    function atualizarInventario(tipo, quantidade) {
+        inventario[tipo] += quantidade;
+        const el = document.getElementById(`inv-${tipo}`);
+        if(el) el.innerText = inventario[tipo];
+    }
+
     function gerarMundo() {
         let mapaAltura = [];
-        // Relevo usando ondas senoidais sobrepostas para parecer natural
         for (let x = 0; x < LARGURA_MUNDO; x++) {
-            let alturaBase = 30; // Altura média do chão (em blocos)
-            let montanha = Math.sin(x / 15) * 10;
-            let detalhe = Math.sin(x / 4) * 3;
+            let alturaBase = 40;
+            let montanha = Math.sin(x / 20) * 12;
+            let detalhe = Math.sin(x / 5) * 4;
             mapaAltura[x] = Math.floor(alturaBase + montanha + detalhe);
         }
 
+        const TAM_BIOMA = 500; // Cada bioma tem 500 blocos de largura
+        const BIOMAS = ['floresta', 'deserto', 'tundra', 'selva'];
+
         for (let x = 0; x < LARGURA_MUNDO; x++) {
             mundo[x] = [];
+            let biomaAtual = BIOMAS[Math.floor(x / TAM_BIOMA) % BIOMAS.length];
+            
             for (let y = 0; y < ALTURA_MUNDO; y++) {
                 let chao = mapaAltura[x];
-
-                if (y < chao) mundo[x][y] = 0; // Céu
-                else if (y === chao) mundo[x][y] = 2; // Grama
-                else if (y > chao && y < chao + 4 + Math.random() * 4) mundo[x][y] = 1; // Camada de terra
-                else mundo[x][y] = 3; // Pedra nas profundezas
+                if (y < chao) {
+                    mundo[x][y] = 0; // Ar
+                } else {
+                    // Lógica de geração por bioma
+                    if (biomaAtual === 'floresta') {
+                        if (y === chao) mundo[x][y] = 'grama';
+                        else if (y < chao + 4) mundo[x][y] = 'terra';
+                        else mundo[x][y] = 'pedra';
+                    } 
+                    else if (biomaAtual === 'deserto') {
+                        if (y < chao + 5) mundo[x][y] = 'areia';
+                        else mundo[x][y] = 'pedra';
+                    }
+                    else if (biomaAtual === 'tundra') {
+                        if (y === chao) mundo[x][y] = 'neve';
+                        else if (y < chao + 3) mundo[x][y] = 'gelo';
+                        else if (y < chao + 6) mundo[x][y] = 'terra';
+                        else mundo[x][y] = 'pedra';
+                    }
+                    else if (biomaAtual === 'selva') {
+                        if (y === chao) mundo[x][y] = 'grama';
+                        else if (y < chao + 5) mundo[x][y] = 'terra';
+                        else mundo[x][y] = 'pedra';
+                    }
+                }
             }
         }
 
-        // Gerar Cavernas (Worms aleatórios)
-        for (let i = 0; i < 40; i++) {
+        // Cavernas (igual em todos biomas)
+        for (let i = 0; i < 60; i++) {
             let cx = Math.floor(Math.random() * LARGURA_MUNDO);
-            let cy = 40 + Math.floor(Math.random() * 50); // Só gera caverna do meio pra baixo
-            for (let passo = 0; passo < 150; passo++) {
-                // Escava um buraco 2x2
+            let cy = 50 + Math.floor(Math.random() * 50);
+            for (let passo = 0; passo < 200; passo++) {
                 if (mundo[cx] && mundo[cx][cy]) mundo[cx][cy] = 0;
                 if (mundo[cx + 1] && mundo[cx + 1][cy]) mundo[cx + 1][cy] = 0;
                 if (mundo[cx] && mundo[cx][cy + 1]) mundo[cx][cy + 1] = 0;
-
-                // Move o "verme" da caverna aleatoriamente
                 cx += Math.random() > 0.5 ? 1 : -1;
                 cy += Math.random() > 0.5 ? 1 : -1;
             }
         }
 
-        // Plantar Árvores
-        for (let x = 3; x < LARGURA_MUNDO - 3; x++) {
+        // Decoração da Superfície (Árvores e Cactos) dependendo do Bioma
+        for (let x = 4; x < LARGURA_MUNDO - 4; x++) {
             let y = mapaAltura[x];
-            // 15% de chance de ter árvore na grama
-            if (mundo[x][y] === 2 && Math.random() < 0.15) {
-                let alturaTronco = 3 + Math.floor(Math.random() * 3);
-                // Tronco
-                for (let t = 1; t <= alturaTronco; t++) mundo[x][y - t] = 4;
-                // Folhas (Copa da árvore)
-                let topo = y - alturaTronco;
-                mundo[x][topo] = 5;
-                mundo[x - 1][topo] = 5;
-                mundo[x + 1][topo] = 5;
-                mundo[x][topo - 1] = 5;
-                mundo[x - 1][topo - 1] = 5;
-                mundo[x + 1][topo - 1] = 5;
-                mundo[x][topo - 2] = 5;
+            let biomaAtual = BIOMAS[Math.floor(x / TAM_BIOMA) % BIOMAS.length];
+
+            if (biomaAtual === 'floresta' && Math.random() < 0.1) {
+                let h = 3 + Math.floor(Math.random() * 3);
+                for (let t = 1; t <= h; t++) mundo[x][y - t] = 'madeira';
+                let topo = y - h;
+                mundo[x][topo] = 'folha'; mundo[x-1][topo] = 'folha'; mundo[x+1][topo] = 'folha';
+                mundo[x][topo-1] = 'folha'; mundo[x-1][topo-1] = 'folha'; mundo[x+1][topo-1] = 'folha';
+                mundo[x][topo-2] = 'folha';
+            } 
+            else if (biomaAtual === 'deserto' && Math.random() < 0.08) {
+                let h = 2 + Math.floor(Math.random() * 3);
+                for (let t = 1; t <= h; t++) mundo[x][y - t] = 'cacto';
+                if (Math.random() > 0.5) mundo[x-1][y - h + 1] = 'cacto'; // braço do cacto
+            }
+            else if (biomaAtual === 'selva' && Math.random() < 0.15) {
+                let h = 6 + Math.floor(Math.random() * 5); // Árvores bem mais altas
+                for (let t = 1; t <= h; t++) mundo[x][y - t] = 'madeira_selva';
+                let topo = y - h;
+                // Copa gigante
+                for(let ix=-2; ix<=2; ix++) {
+                    for(let iy=0; iy<=3; iy++) {
+                        if (Math.random() > 0.2) mundo[x+ix][topo - iy] = 'folha_selva';
+                    }
+                }
             }
         }
     }
 
-    // Jogador (Spawna no meio do mundo, no topo da colina)
-    let meuJogador = { x: (LARGURA_MUNDO / 2) * TAM_BLOCO, y: 0, vx: 0, vy: 0, width: 14, height: 26, cor: `hsl(${Math.random()*360}, 100%, 60%)` };
+    let meuJogador = { x: (LARGURA_MUNDO / 2) * TAM_BLOCO, y: 0, vx: 0, vy: 0, width: 14, height: 26, cor: `hsl(${Math.random()*360}, 100%, 60%)`, nome: '' };
     let teclas = { a: false, d: false, w: false };
 
     const peer = new Peer();
@@ -209,16 +277,18 @@
     peer.on('open', (id) => { meuId = id; });
 
     function habilitarUIJogando() {
+        meuJogador.nome = document.getElementById('nome-jogador').value || 'Jogador';
         document.getElementById('menu-inicial').style.display = 'none';
         document.getElementById('info-rede').style.display = 'flex';
         document.getElementById('painel-blocos').style.display = 'flex';
+        document.getElementById('painel-crafting').style.display = 'flex';
+        iniciarMusica();
     }
 
     function criarServidor() {
         souHost = true;
         gerarMundo();
 
-        // Encontrar posição Y segura para nascer
         let centroX = Math.floor(LARGURA_MUNDO / 2);
         for (let y = 0; y < ALTURA_MUNDO; y++) {
             if (mundo[centroX][y] !== 0) { meuJogador.y = (y - 2) * TAM_BLOCO; break; }
@@ -231,7 +301,7 @@
         peer.on('connection', (conn) => {
             conexoesHost.push(conn);
             conn.on('open', () => {
-                conn.send({ tipo: 'INIT', mundo: mundo, jogadores: jogadores });
+                conn.send({ tipo: 'INIT', mundo: mundo, jogadores: jogadores, drops: drops });
                 document.getElementById('qtd-jogadores').innerText = conexoesHost.length + 1;
             });
             conn.on('data', gerenciarDadosRede);
@@ -266,7 +336,7 @@
         if (dados.tipo === 'INIT') {
             mundo = dados.mundo;
             jogadores = dados.jogadores;
-            // Nascer perto de outro jogador
+            drops = dados.drops || {};
             const keys = Object.keys(jogadores);
             if (keys.length > 0) {
                 meuJogador.x = jogadores[keys[0]].x;
@@ -277,7 +347,7 @@
         }
         if (dados.tipo === 'ATUALIZAR_JOGADORES') {
             jogadores = dados.jogadores;
-            jogadores[meuId] = meuJogador; // Mantém sua posição suave localmente
+            jogadores[meuId] = meuJogador;
         }
         if (dados.tipo === 'MOVER' && souHost) {
             jogadores[dados.id] = dados.jogador;
@@ -285,32 +355,48 @@
         }
         if (dados.tipo === 'BLOCO') {
             mundo[dados.x][dados.y] = dados.idBloco;
-            if (souHost) transmitir(dados); // Repassa pro resto
+            if (souHost) transmitir(dados);
+        }
+        if (dados.tipo === 'CRIAR_DROP') {
+            drops[dados.idDrop] = dados.drop;
+            if (souHost) transmitir(dados);
+        }
+        if (dados.tipo === 'REMOVER_DROP') {
+            delete drops[dados.idDrop];
+            if (souHost) transmitir(dados);
         }
     }
 
-    // --- 5. FÍSICA ---
-    function verificarColisao(nx, ny) {
+    function verificarColisao(nx, ny, width = meuJogador.width, height = meuJogador.height) {
         const esq = Math.floor(nx / TAM_BLOCO);
-        const dir = Math.floor((nx + meuJogador.width) / TAM_BLOCO);
+        const dir = Math.floor((nx + width) / TAM_BLOCO);
         const topo = Math.floor(ny / TAM_BLOCO);
-        const baixo = Math.floor((ny + meuJogador.height) / TAM_BLOCO);
+        const baixo = Math.floor((ny + height) / TAM_BLOCO);
 
         if (esq < 0 || dir >= LARGURA_MUNDO || topo < 0 || baixo >= ALTURA_MUNDO) return true;
 
         for (let i = esq; i <= dir; i++) {
             for (let j = topo; j <= baixo; j++) {
-                // Ignora as folhas (ID 5) na colisão, podemos atravessá-las
-                if (mundo[i] && mundo[i][j] > 0 && mundo[i][j] !== 5) return true;
+                // Vidro e folhas não barram movimento se você quiser (aqui vamos deixar tudo solido exceto ar)
+                if (mundo[i] && mundo[i][j] !== 0 && mundo[i][j] !== 'folha' && mundo[i][j] !== 'folha_selva') return true;
             }
         }
         return false;
     }
 
+    function criarDrop(x, y, tipo) {
+        const idDrop = Math.random().toString(36).substr(2, 9);
+        const novoDrop = { x: x * TAM_BLOCO + 5, y: y * TAM_BLOCO + 5, vy: -3, tipo: tipo };
+        drops[idDrop] = novoDrop;
+
+        const pacote = { tipo: 'CRIAR_DROP', idDrop: idDrop, drop: novoDrop };
+        if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+    }
+
     function atualizarFisica() {
         if (teclas.a) meuJogador.vx = -4.5;
         else if (teclas.d) meuJogador.vx = 4.5;
-        else meuJogador.vx *= 0.7; // Desaceleração
+        else meuJogador.vx *= 0.7;
 
         meuJogador.x += meuJogador.vx;
         if (verificarColisao(meuJogador.x, meuJogador.y)) {
@@ -318,8 +404,8 @@
             meuJogador.vx = 0;
         }
 
-        meuJogador.vy += 0.6; // Gravidade
-        if (meuJogador.vy > 12) meuJogador.vy = 12; // Terminal velocity
+        meuJogador.vy += 0.6;
+        if (meuJogador.vy > 12) meuJogador.vy = 12;
         meuJogador.y += meuJogador.vy;
 
         let noChao = false;
@@ -329,26 +415,39 @@
             meuJogador.vy = 0;
         }
 
-        if (teclas.w && noChao) meuJogador.vy = -10; // Pulo mais alto
+        if (teclas.w && noChao) meuJogador.vy = -10;
 
-        // Atualiza câmera
+        for (let idDrop in drops) {
+            let d = drops[idDrop];
+            d.vy += 0.4;
+            d.y += d.vy;
+
+            if (verificarColisao(d.x, d.y, 10, 10)) {
+                d.y -= d.vy;
+                d.vy = 0;
+            }
+
+            if (Math.abs(meuJogador.x - d.x) < 20 && Math.abs(meuJogador.y - d.y) < 20) {
+                atualizarInventario(d.tipo, 1);
+                delete drops[idDrop];
+
+                const pacote = { tipo: 'REMOVER_DROP', idDrop: idDrop };
+                if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+            }
+        }
+
         camera.x = meuJogador.x - canvas.width / 2 + meuJogador.width / 2;
         camera.y = meuJogador.y - canvas.height / 2 + meuJogador.height / 2;
-
-        // Trava câmera nos limites do mundo
         camera.x = Math.max(0, Math.min(camera.x, LARGURA_MUNDO * TAM_BLOCO - canvas.width));
         camera.y = Math.max(0, Math.min(camera.y, ALTURA_MUNDO * TAM_BLOCO - canvas.height));
 
-        // Envia rede
         if (souHost) {
             jogadores[meuId] = meuJogador;
         } else if (conexaoCliente && conexaoCliente.open) {
-            // Manda apenas a cada poucos frames ou envia sempre (para lan é ok)
             conexaoCliente.send({ tipo: 'MOVER', id: meuId, jogador: meuJogador });
         }
     }
 
-    // --- 6. CONTROLES ---
     window.addEventListener('keydown', (e) => {
         if (['a', 'ArrowLeft'].includes(e.key)) teclas.a = true;
         if (['d', 'ArrowRight'].includes(e.key)) teclas.d = true;
@@ -362,7 +461,6 @@
 
     canvas.addEventListener('mousedown', (e) => {
         const rect = canvas.getBoundingClientRect();
-        // Calcula o mouse considerando onde a câmera está
         const mouseX = e.clientX - rect.left + camera.x;
         const mouseY = e.clientY - rect.top + camera.y;
 
@@ -370,34 +468,63 @@
         const gridY = Math.floor(mouseY / TAM_BLOCO);
 
         if (gridX >= 0 && gridX < LARGURA_MUNDO && gridY >= 0 && gridY < ALTURA_MUNDO) {
-            const novoBloco = (e.button === 2) ? 0 : blocoAtual;
-            mundo[gridX][gridY] = novoBloco;
+            let quebrando = e.button != 2;
+            let blocoAlvo = mundo[gridX][gridY];
 
-            const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: novoBloco };
-            if (souHost) transmitir(pacote);
-            else if (conexaoCliente) conexaoCliente.send(pacote);
+            if (quebrando && blocoAlvo !== 0) {
+                criarDrop(gridX, gridY, blocoAlvo);
+                mundo[gridX][gridY] = 0;
+                const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: 0 };
+                if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+
+            } else if (!quebrando && blocoAlvo === 0 && inventario[blocoAtual] > 0) {
+                mundo[gridX][gridY] = blocoAtual;
+                atualizarInventario(blocoAtual, -1);
+                const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: blocoAtual };
+                if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+            }
         }
     });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    // --- 7. GRÁFICOS (RENDERIZAÇÃO) ---
-    // Desenha o fundo do céu com degradê
     function desenharFundo() {
         let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
         grad.addColorStop(0, "#4facfe");
         grad.addColorStop(1, "#00f2fe");
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        nuvens.forEach(n => {
+            n.x += n.velocidade;
+            if (n.x > LARGURA_MUNDO * TAM_BLOCO) n.x = -100;
+            let renderX = n.x - camera.x * 0.15;
+            let renderY = n.y - camera.y * 0.05;
+            ctx.beginPath();
+            ctx.arc(renderX, renderY, n.tamanho/2, 0, Math.PI*2);
+            ctx.arc(renderX + n.tamanho/2, renderY - n.tamanho/4, n.tamanho/2.5, 0, Math.PI*2);
+            ctx.arc(renderX + n.tamanho, renderY, n.tamanho/2.2, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        ctx.fillStyle = '#2b5876';
+        for (let i = 0; i < 20; i++) {
+            let montanhaX = (i * 300) - camera.x * 0.3;
+            let montanhaY = 300 - camera.y * 0.2;
+            ctx.beginPath();
+            ctx.moveTo(montanhaX, canvas.height);
+            ctx.lineTo(montanhaX + 150, montanhaY);
+            ctx.lineTo(montanhaX + 300, canvas.height);
+            ctx.fill();
+        }
     }
 
     function desenhar() {
         desenharFundo();
 
         ctx.save();
-        // Move a "lente" da câmera
         ctx.translate(Math.floor(-camera.x), Math.floor(-camera.y));
 
-        // OTIMIZAÇÃO VITAL: Desenhar apenas os blocos que estão na tela
         let inicioX = Math.max(0, Math.floor(camera.x / TAM_BLOCO));
         let fimX = Math.min(LARGURA_MUNDO, Math.ceil((camera.x + canvas.width) / TAM_BLOCO));
         let inicioY = Math.max(0, Math.floor(camera.y / TAM_BLOCO));
@@ -408,10 +535,8 @@
                 const bloco = mundo[x][y];
                 if (bloco !== 0) {
                     ctx.drawImage(texturas[bloco], x * TAM_BLOCO, y * TAM_BLOCO);
-
-                    // Escurece os blocos do fundo (Iluminação rústica de caverna)
-                    if (y > 35) {
-                        let escuridao = Math.min(0.8, (y - 35) * 0.05);
+                    if (y > 45 && bloco !== 'vidro') { 
+                        let escuridao = Math.min(0.8, (y - 45) * 0.05);
                         ctx.fillStyle = `rgba(0,0,0,${escuridao})`;
                         ctx.fillRect(x * TAM_BLOCO, y * TAM_BLOCO, TAM_BLOCO, TAM_BLOCO);
                     }
@@ -419,13 +544,17 @@
             }
         }
 
-        // Desenhar Jogadores
+        let flutuacao = Math.sin(Date.now() / 200) * 3;
+        for (let id in drops) {
+            let d = drops[id];
+            ctx.drawImage(texturas[d.tipo], d.x, d.y + flutuacao, 10, 10);
+        }
+
         for (let id in jogadores) {
             let p = jogadores[id];
             ctx.fillStyle = p.cor;
             ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.width, p.height);
 
-            // Desenha olhos no personagem
             ctx.fillStyle = 'white';
             ctx.fillRect(Math.floor(p.x) + 2, Math.floor(p.y) + 4, 4, 4);
             ctx.fillRect(Math.floor(p.x) + 8, Math.floor(p.y) + 4, 4, 4);
@@ -434,42 +563,32 @@
             ctx.fillRect(Math.floor(p.x) + 3 + direcao, Math.floor(p.y) + 5, 2, 2);
             ctx.fillRect(Math.floor(p.x) + 9 + direcao, Math.floor(p.y) + 5, 2, 2);
 
-            // Nome em cima do jogador
             ctx.fillStyle = 'white';
-            ctx.font = '10px sans-serif';
+            ctx.font = 'bold 12px sans-serif';
             ctx.textAlign = 'center';
-            let nome = id === meuId ? 'Você' : 'Amigo';
-            ctx.fillText(nome, p.x + p.width / 2, p.y - 5);
+            ctx.shadowColor = "black"; ctx.shadowBlur = 4;
+            ctx.fillText(p.nome, p.x + p.width / 2, p.y - 8);
+            ctx.shadowBlur = 0;
         }
 
         ctx.restore();
     }
 
-    // --- 8. MÚSICA GERADA POR CÓDIGO (WEB AUDIO API) ---
     let contextoAudio;
 
     function iniciarMusica() {
-        if (contextoAudio) return; // Já está tocando
-        const btn = document.querySelector('button[onclick="iniciarMusica()"]');
-        btn.innerText = "🔊 Tocando";
-        btn.style.background = "#4CAF50";
-
+        if (contextoAudio) return;
         contextoAudio = new(window.AudioContext || window.webkitAudioContext)();
-        const escalaPentatonica = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25]; // Escala de Dó maior
+        const escalaPentatonica = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
 
-        // Loop musical procedural infinito
         setInterval(() => {
-            if (Math.random() < 0.2) return; // Pausa dramática aleatória
-
+            if (Math.random() < 0.2) return;
             const osc = contextoAudio.createOscillator();
             const ganho = contextoAudio.createGain();
-
-            osc.type = Math.random() > 0.5 ? 'sine' : 'triangle'; // Instrumento suave
+            osc.type = Math.random() > 0.5 ? 'sine' : 'triangle';
             let notaBase = escalaPentatonica[Math.floor(Math.random() * escalaPentatonica.length)];
-            // 10% de chance de tocar uma oitava abaixo (grave)
             osc.frequency.value = Math.random() > 0.9 ? notaBase / 2 : notaBase;
 
-            // Configura Envelope (Surgir suave e desaparecer lento)
             ganho.gain.setValueAtTime(0, contextoAudio.currentTime);
             ganho.gain.linearRampToValueAtTime(0.1, contextoAudio.currentTime + 0.1);
             ganho.gain.exponentialRampToValueAtTime(0.001, contextoAudio.currentTime + 1.5);
@@ -479,13 +598,12 @@
 
             osc.start();
             osc.stop(contextoAudio.currentTime + 1.5);
-        }, 400); // Toca uma nota a cada 400ms
+        }, 400);
     }
 
     function loopJogo() {
         atualizarFisica();
         if (souHost && Object.keys(jogadores).length > 1) {
-            // O host atualiza e manda as posições para evitar dessincronização grave
             transmitir({ tipo: 'ATUALIZAR_JOGADORES', jogadores: jogadores });
         }
         desenhar();
