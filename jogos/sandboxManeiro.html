@@ -6,23 +6,66 @@
     <title>Sandbox Maneiro - Biomas & Crafting</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #111; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; overflow: hidden; }
-        canvas { border: 4px solid #444; border-radius: 8px; cursor: crosshair; image-rendering: pixelated; box-shadow: 0px 0px 20px rgba(0,0,0,0.8); }
-        #ui { margin-bottom: 10px; background: #222; padding: 15px; border-radius: 8px; display: inline-block; width: 800px; box-sizing: border-box; }
+        body { background: #111; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        
+        /* Layout Principal para alinhar Inventário - Jogo - Crafting */
+        #main-layout {
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        #jogo-container { position: relative; display: inline-block; }
+        canvas { border: 4px solid #444; border-radius: 8px; cursor: crosshair; image-rendering: pixelated; box-shadow: 0px 0px 20px rgba(0,0,0,0.8); display: block; }
+        #ui { margin-bottom: 10px; background: #222; padding: 15px; border-radius: 8px; width: 100%; max-width: 800px; box-sizing: border-box; }
+        
         button, input { padding: 8px 12px; margin: 0 5px; border-radius: 4px; border: none; font-size: 14px; }
         button { background: #4CAF50; color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
         button:hover { background: #45a049; }
-        .btn-craft { background: #FF9800; font-size: 12px; padding: 5px 8px; margin: 2px; }
-        .btn-craft:hover { background: #e68a00; }
         input { background: #333; color: white; border: 1px solid #555; }
         
-        #painel-blocos { display: none; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; margin-top: 10px;}
-        #painel-crafting { display: none; background: #333; padding: 10px; border-radius: 6px; margin-top: 10px; justify-content: center; gap: 10px; flex-wrap: wrap;}
-        
-        .bloco-select { display: inline-block; width: 34px; height: 34px; border: 3px solid transparent; cursor: pointer; border-radius: 4px; position: relative; background-size: cover;}
-        .selecionado { border-color: #ffeb3b; transform: scale(1.1); z-index: 10;}
-        .contador-inv { position: absolute; bottom: -5px; right: -5px; background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
         #menu-inicial { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;}
+
+        /* INVENTÁRIO (AGORA NA ESQUERDA) */
+        #painel-inventario {
+            display: none; /* Muda para grid quando o jogo inicia */
+            grid-template-columns: repeat(5, 36px);
+            grid-template-rows: repeat(10, 36px);
+            gap: 2px;
+            background: #222;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #444;
+            user-select: none;
+        }
+        .slot-inv {
+            width: 36px; height: 36px; border: 2px solid transparent; border-radius: 4px;
+            position: relative; background-color: rgba(50, 50, 50, 0.8); cursor: pointer;
+            box-sizing: border-box; background-size: cover; image-rendering: pixelated;
+        }
+        .slot-inv:hover { background-color: rgba(80, 80, 80, 0.8); }
+        .slot-inv.selecionado { border-color: #ffeb3b; background-color: rgba(100, 100, 50, 0.8); }
+        .contador-inv { position: absolute; bottom: 0; right: 2px; color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 0 #000; pointer-events: none;}
+        .hotkey-inv { position: absolute; top: 0; left: 2px; color: #aaa; font-size: 10px; font-weight: bold; text-shadow: 1px 1px 0 #000; pointer-events: none;}
+        
+        /* CRAFTING (AGORA NA DIREITA) */
+        #painel-crafting { 
+            display: none; /* Muda para flex quando o jogo inicia */
+            background: #222; 
+            padding: 10px; 
+            border-radius: 8px; 
+            border: 2px solid #444;
+            flex-direction: column; 
+            gap: 10px; 
+            min-width: 150px;
+        }
+        .btn-craft { background: #FF9800; font-size: 12px; padding: 8px; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        .btn-craft:hover { background: #e68a00; }
+        .msg-vazio { color: #888; font-size: 12px; font-style: italic; }
+
+        #dica-controles { font-size: 12px; color: #aaa; margin-top: 5px; }
     </style>
 </head>
 
@@ -44,21 +87,21 @@
             </div>
             <div id="status-musica" style="color: #E91E63; font-weight: bold; font-size: 12px;">🎵 Música On</div>
         </div>
-
-        <div id="painel-blocos">
-            <div style="width: 100%; font-size: 12px; color: #aaa; margin-bottom: 5px;">[WASD] Mover | [Esq] Quebrar | [Dir] Colocar</div>
+        <div id="dica-controles">[WASD] Mover | [Teclas 1-0] Trocar Item | [Esq] Quebrar/Bater | [Dir] Colocar</div>
+    </div>
+    
+    <div id="main-layout">
+        <div id="painel-inventario"></div>
+        
+        <div id="jogo-container">
+            <canvas id="jogo" width="800" height="450"></canvas>
         </div>
 
         <div id="painel-crafting">
-            <span style="font-size: 12px; color: #ffeb3b; font-weight: bold;">🔨 Crafting:</span>
-            <button class="btn-craft" onclick="craftar('madeira', 2, 'tabua', 4)">2 Madeira ➔ 4 Tábuas</button>
-            <button class="btn-craft" onclick="craftar('pedra', 4, 'tijolo_pedra', 4)">4 Pedra ➔ 4 Tijolos</button>
-            <button class="btn-craft" onclick="craftar('areia', 2, 'vidro', 1)">2 Areia ➔ 1 Vidro</button>
-            <button class="btn-craft" onclick="craftar('neve', 4, 'gelo', 1)">4 Neve ➔ 1 Gelo</button>
+            <span style="font-size: 14px; color: #ffeb3b; font-weight: bold;">🔨 Crafting</span>
+            <div id="lista-crafting"></div>
         </div>
     </div>
-    
-    <canvas id="jogo" width="800" height="450"></canvas>
     
     <script>
     const canvas = document.getElementById('jogo');
@@ -66,6 +109,9 @@
     const TAM_BLOCO = 20;
     const LARGURA_MUNDO = 2000;
     const ALTURA_MUNDO = 1000;
+    const ALCANCE_MINERACAO = 5 * TAM_BLOCO;
+    const MAX_STACK = 9999;
+    const ASSET_PATH = 'assets/sandboxManeiro/';
 
     let camera = { x: 0, y: 0 };
     let mundo = [];
@@ -73,18 +119,45 @@
     let drops = {};
     let nuvens = [];
     let meuId = null;
-    let blocoAtual = 'terra';
 
-    // Lista mestra de todos os blocos do jogo
-    const TIPOS_BLOCOS = [
-        'terra', 'grama', 'pedra', 'madeira', 'folha', 
-        'areia', 'cacto', 'neve', 'gelo', 'madeira_selva', 
-        'folha_selva', 'tabua', 'tijolo_pedra', 'vidro'
+    const REGISTRO_BLOCOS = {
+        'terra': { colisao: true },
+        'grama': { colisao: true },
+        'pedra': { colisao: true },
+        'areia': { colisao: true },
+        'cacto': { colisao: true },
+        'neve': { colisao: true },
+        'gelo': { colisao: true },
+        'tabua': { colisao: true },
+        'tijolo_pedra': { colisao: true },
+        'vidro': { colisao: true },
+        'madeira': { colisao: false },
+        'madeira_selva': { colisao: false },
+        'folha': { colisao: false },
+        'folha_selva': { colisao: false },
+    };
+
+    const MUSICAS = {
+        'floresta': {
+            'arquivo': ASSET_PATH + 'musica_main.mp3',
+            'titulo': 'Floresta'
+        },
+    }
+
+    const RECEITAS = [
+        { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas', reqId: 'madeira', reqQtd: 2, labelReq: '2 Madeira' },
+        { resultado: 'tijolo_pedra', qtdResultado: 4, label: '4 Tijolos', reqId: 'pedra', reqQtd: 4, labelReq: '4 Pedra' },
+        { resultado: 'vidro', qtdResultado: 1, label: '1 Vidro', reqId: 'areia', reqQtd: 2, labelReq: '2 Areia' },
+        { resultado: 'gelo', qtdResultado: 1, label: '1 Gelo', reqId: 'neve', reqQtd: 4, labelReq: '4 Neve' }
     ];
 
-    let inventario = {};
-    TIPOS_BLOCOS.forEach(b => inventario[b] = 0);
+    const COLUNAS_INV = 5;
+    const LINHAS_INV = 10;
+    const TOTAL_SLOTS = COLUNAS_INV * LINHAS_INV;
+    let inventario = new Array(TOTAL_SLOTS).fill(null);
+    let slotSelecionado = 0;
 
+    inventario[0] = { id: 'picareta_cobre', quantidade: 1 };
     const texturas = {};
 
     function criarTextura(nomeId, renderCmds) {
@@ -97,82 +170,144 @@
     }
 
     function inicializarTexturas() {
-        // Floresta Básica
         criarTextura('terra', (cx) => { cx.fillStyle = '#5d4037'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#4e342e'; cx.fillRect(2, 2, 4, 4); cx.fillRect(12, 14, 4, 4); });
         criarTextura('grama', (cx) => { cx.fillStyle = '#5d4037'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#4CAF50'; cx.fillRect(0, 0, 20, 6); });
         criarTextura('pedra', (cx) => { cx.fillStyle = '#757575'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#616161'; cx.fillRect(0, 0, 20, 2); cx.fillStyle = '#424242'; cx.fillRect(18, 0, 2, 20); });
         criarTextura('madeira', (cx) => { cx.fillStyle = '#795548'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#5D4037'; cx.fillRect(4, 0, 2, 20); cx.fillRect(12, 0, 2, 20); });
         criarTextura('folha', (cx) => { cx.fillStyle = 'rgba(76, 175, 80, 0.85)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = 'rgba(56, 142, 60, 0.9)'; cx.fillRect(2, 2, 6, 6); });
-        
-        // Deserto
         criarTextura('areia', (cx) => { cx.fillStyle = '#EEDD82'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#DAA520'; cx.fillRect(3, 3, 2, 2); cx.fillRect(14, 10, 2, 2); });
         criarTextura('cacto', (cx) => { cx.fillStyle = '#2E8B57'; cx.fillRect(2, 0, 16, 20); cx.fillStyle = '#006400'; cx.fillRect(6, 0, 2, 20); cx.fillRect(12, 0, 2, 20); });
-        
-        // Tundra
         criarTextura('neve', (cx) => { cx.fillStyle = '#FFFAFA'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#E0FFFF'; cx.fillRect(0, 16, 20, 4); });
         criarTextura('gelo', (cx) => { cx.fillStyle = 'rgba(173, 216, 230, 0.7)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = 'rgba(255, 255, 255, 0.5)'; cx.fillRect(2, 2, 16, 2); cx.fillRect(2, 2, 2, 16); });
-        
-        // Selva
         criarTextura('madeira_selva', (cx) => { cx.fillStyle = '#4A3728'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#3E2723'; cx.fillRect(6, 0, 4, 20); });
         criarTextura('folha_selva', (cx) => { cx.fillStyle = 'rgba(34, 139, 34, 0.9)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = 'rgba(0, 100, 0, 0.8)'; cx.fillRect(4, 4, 8, 8); });
-        
-        // Craftados
         criarTextura('tabua', (cx) => { cx.fillStyle = '#DEB887'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#8B4513'; cx.fillRect(0, 4, 20, 1); cx.fillRect(0, 10, 20, 1); cx.fillRect(0, 16, 20, 1); });
         criarTextura('tijolo_pedra', (cx) => { cx.fillStyle = '#808080'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#555'; cx.fillRect(0, 9, 20, 2); cx.fillRect(9, 0, 2, 10); cx.fillRect(15, 10, 2, 10); cx.fillRect(4, 10, 2, 10); });
         criarTextura('vidro', (cx) => { cx.fillStyle = 'rgba(200, 255, 255, 0.3)'; cx.fillRect(0, 0, 20, 20); cx.fillStyle = '#888'; cx.strokeRect(0, 0, 20, 20); cx.fillStyle = 'rgba(255, 255, 255, 0.6)'; cx.fillRect(4, 4, 6, 2); cx.fillRect(4, 4, 2, 6); });
-
-        // Gerar o menu de blocos na UI dinamicamente
-        const painelBlocos = document.getElementById('painel-blocos');
-        TIPOS_BLOCOS.forEach(id => {
-            let div = document.createElement('div');
-            div.className = 'bloco-select' + (id === 'terra' ? ' selecionado' : '');
-            div.id = 'sel-' + id;
-            div.style.backgroundImage = `url(${texturas[id].toDataURL()})`;
-            div.onclick = () => escolherBloco(id, div);
-            
-            let span = document.createElement('span');
-            span.className = 'contador-inv';
-            span.id = 'inv-' + id;
-            span.innerText = '0';
-            
-            div.appendChild(span);
-            painelBlocos.appendChild(div);
+        criarTextura('picareta_cobre', (cx) => {
+            cx.fillStyle = '#8B4513'; cx.fillRect(8, 8, 4, 12);
+            cx.fillStyle = '#B87333'; cx.fillRect(2, 4, 16, 4); cx.fillRect(2, 8, 2, 2); cx.fillRect(16, 8, 2, 2);
+            cx.fillStyle = '#cd7f32'; cx.fillRect(4, 4, 12, 2);
         });
+        renderizarInventarioUI();
     }
     inicializarTexturas();
 
-    // Sistema de Crafting
+    function renderizarInventarioUI() {
+        const painel = document.getElementById('painel-inventario');
+        painel.innerHTML = '';
+        
+        for (let i = 0; i < TOTAL_SLOTS; i++) {
+            let slotDiv = document.createElement('div');
+            slotDiv.className = 'slot-inv';
+            if (i === slotSelecionado) slotDiv.classList.add('selecionado');
+            
+            if (i < 10) {
+                let hotkey = document.createElement('span');
+                hotkey.className = 'hotkey-inv';
+                hotkey.innerText = (i === 9) ? '0' : (i + 1);
+                slotDiv.appendChild(hotkey);
+                slotDiv.onclick = () => { slotSelecionado = i; renderizarInventarioUI(); };
+            }
+
+            let item = inventario[i];
+            if (item) {
+                slotDiv.style.backgroundImage = `url(${texturas[item.id].toDataURL()})`;
+                if (item.id !== 'picareta_cobre') {
+                    let contador = document.createElement('span');
+                    contador.className = 'contador-inv';
+                    contador.innerText = item.quantidade;
+                    slotDiv.appendChild(contador);
+                }
+            }
+            painel.appendChild(slotDiv);
+        }
+        renderizarCraftingUI();
+    }
+
+    function renderizarCraftingUI() {
+        const lista = document.getElementById('lista-crafting');
+        lista.innerHTML = '';
+        let mostrouAlgo = false;
+
+        RECEITAS.forEach(receita => {
+            if (contarItemNoInventario(receita.reqId) >= receita.reqQtd) {
+                mostrouAlgo = true;
+                let btn = document.createElement('button');
+                btn.className = 'btn-craft';
+                btn.innerHTML = `<span>${receita.labelReq}</span> ➔ <b>${receita.label}</b>`;
+                btn.onclick = () => craftar(receita.reqId, receita.reqQtd, receita.resultado, receita.qtdResultado);
+                lista.appendChild(btn);
+            }
+        });
+
+        if (!mostrouAlgo) {
+            lista.innerHTML = '<span class="msg-vazio">Sem materiais...</span>';
+        }
+    }
+
+    function adicionarAoInventario(id, quantidade) {
+        for (let i = 0; i < TOTAL_SLOTS; i++) {
+            if (inventario[i] && inventario[i].id === id && inventario[i].quantidade < MAX_STACK) {
+                let espacoLivre = MAX_STACK - inventario[i].quantidade;
+                if (quantidade <= espacoLivre) {
+                    inventario[i].quantidade += quantidade;
+                    renderizarInventarioUI();
+                    return true;
+                } else {
+                    inventario[i].quantidade = MAX_STACK;
+                    quantidade -= espacoLivre;
+                }
+            }
+        }
+        for (let i = 0; i < TOTAL_SLOTS; i++) {
+            if (!inventario[i]) {
+                inventario[i] = { id: id, quantidade: quantidade };
+                renderizarInventarioUI();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function removerDoInventario(index, quantidade) {
+        if (inventario[index]) {
+            inventario[index].quantidade -= quantidade;
+            if (inventario[index].quantidade <= 0) inventario[index] = null;
+            renderizarInventarioUI();
+        }
+    }
+
+    function contarItemNoInventario(id) {
+        return inventario.reduce((acc, slot) => (slot && slot.id === id) ? acc + slot.quantidade : acc, 0);
+    }
+
+    function consumirItensParaCrafting(id, quantidade) {
+        let restante = quantidade;
+        for (let i = 0; i < TOTAL_SLOTS && restante > 0; i++) {
+            if (inventario[i] && inventario[i].id === id) {
+                if (inventario[i].quantidade >= restante) {
+                    inventario[i].quantidade -= restante;
+                    restante = 0;
+                    if (inventario[i].quantidade === 0) inventario[i] = null;
+                } else {
+                    restante -= inventario[i].quantidade;
+                    inventario[i] = null;
+                }
+            }
+        }
+        renderizarInventarioUI();
+    }
+
     function craftar(ingrediente, qtdNecessaria, resultado, qtdResultado) {
-        if (inventario[ingrediente] >= qtdNecessaria) {
-            atualizarInventario(ingrediente, -qtdNecessaria);
-            atualizarInventario(resultado, qtdResultado);
-        } else {
-            // Efeito visual de falha (piscar vermelho)
-            let el = document.getElementById('inv-' + ingrediente).parentElement;
-            el.style.borderColor = 'red';
-            setTimeout(() => el.style.borderColor = (blocoAtual === ingrediente) ? '#ffeb3b' : 'transparent', 300);
+        if (contarItemNoInventario(ingrediente) >= qtdNecessaria) {
+            consumirItensParaCrafting(ingrediente, qtdNecessaria);
+            adicionarAoInventario(resultado, qtdResultado);
         }
     }
 
     for (let i = 0; i < 60; i++) {
-        nuvens.push({
-            x: Math.random() * LARGURA_MUNDO * TAM_BLOCO,
-            y: Math.random() * 200,
-            velocidade: 0.1 + Math.random() * 0.3,
-            tamanho: 40 + Math.random() * 60
-        });
-    }
-
-    function escolherBloco(id, el) {
-        blocoAtual = id;
-        document.querySelectorAll('.bloco-select').forEach(b => b.classList.remove('selecionado'));
-        el.classList.add('selecionado');
-    }
-
-    function atualizarInventario(tipo, quantidade) {
-        inventario[tipo] += quantidade;
-        const el = document.getElementById(`inv-${tipo}`);
-        if(el) el.innerText = inventario[tipo];
+        nuvens.push({ x: Math.random() * LARGURA_MUNDO * TAM_BLOCO, y: Math.random() * 200, velocidade: 0.1 + Math.random() * 0.3, tamanho: 40 + Math.random() * 60 });
     }
 
     function gerarMundo() {
@@ -184,8 +319,8 @@
             mapaAltura[x] = Math.floor(alturaBase + montanha + detalhe);
         }
 
-        const TAM_BIOMA = 500; // Cada bioma tem 500 blocos de largura
-        const BIOMAS = ['floresta', 'deserto', 'tundra', 'selva'];
+        const TAM_BIOMA = 400;
+        const BIOMAS = ['selva', 'deserto', 'floresta', 'floresta', 'tundra',];
 
         for (let x = 0; x < LARGURA_MUNDO; x++) {
             mundo[x] = [];
@@ -194,25 +329,21 @@
             for (let y = 0; y < ALTURA_MUNDO; y++) {
                 let chao = mapaAltura[x];
                 if (y < chao) {
-                    mundo[x][y] = 0; // Ar
+                    mundo[x][y] = 0;
                 } else {
-                    // Lógica de geração por bioma
                     if (biomaAtual === 'floresta') {
                         if (y === chao) mundo[x][y] = 'grama';
                         else if (y < chao + 4) mundo[x][y] = 'terra';
                         else mundo[x][y] = 'pedra';
-                    } 
-                    else if (biomaAtual === 'deserto') {
+                    } else if (biomaAtual === 'deserto') {
                         if (y < chao + 5) mundo[x][y] = 'areia';
                         else mundo[x][y] = 'pedra';
-                    }
-                    else if (biomaAtual === 'tundra') {
+                    } else if (biomaAtual === 'tundra') {
                         if (y === chao) mundo[x][y] = 'neve';
                         else if (y < chao + 3) mundo[x][y] = 'gelo';
                         else if (y < chao + 6) mundo[x][y] = 'terra';
                         else mundo[x][y] = 'pedra';
-                    }
-                    else if (biomaAtual === 'selva') {
+                    } else if (biomaAtual === 'selva') {
                         if (y === chao) mundo[x][y] = 'grama';
                         else if (y < chao + 5) mundo[x][y] = 'terra';
                         else mundo[x][y] = 'pedra';
@@ -221,7 +352,6 @@
             }
         }
 
-        // Cavernas (igual em todos biomas)
         for (let i = 0; i < 60; i++) {
             let cx = Math.floor(Math.random() * LARGURA_MUNDO);
             let cy = 50 + Math.floor(Math.random() * 50);
@@ -234,7 +364,6 @@
             }
         }
 
-        // Decoração da Superfície (Árvores e Cactos) dependendo do Bioma
         for (let x = 4; x < LARGURA_MUNDO - 4; x++) {
             let y = mapaAltura[x];
             let biomaAtual = BIOMAS[Math.floor(x / TAM_BIOMA) % BIOMAS.length];
@@ -246,17 +375,14 @@
                 mundo[x][topo] = 'folha'; mundo[x-1][topo] = 'folha'; mundo[x+1][topo] = 'folha';
                 mundo[x][topo-1] = 'folha'; mundo[x-1][topo-1] = 'folha'; mundo[x+1][topo-1] = 'folha';
                 mundo[x][topo-2] = 'folha';
-            } 
-            else if (biomaAtual === 'deserto' && Math.random() < 0.08) {
+            } else if (biomaAtual === 'deserto' && Math.random() < 0.08) {
                 let h = 2 + Math.floor(Math.random() * 3);
                 for (let t = 1; t <= h; t++) mundo[x][y - t] = 'cacto';
-                if (Math.random() > 0.5) mundo[x-1][y - h + 1] = 'cacto'; // braço do cacto
-            }
-            else if (biomaAtual === 'selva' && Math.random() < 0.15) {
-                let h = 6 + Math.floor(Math.random() * 5); // Árvores bem mais altas
+                if (Math.random() > 0.5) mundo[x-1][y - h + 1] = 'cacto';
+            } else if (biomaAtual === 'selva' && Math.random() < 0.15) {
+                let h = 6 + Math.floor(Math.random() * 5);
                 for (let t = 1; t <= h; t++) mundo[x][y - t] = 'madeira_selva';
                 let topo = y - h;
-                // Copa gigante
                 for(let ix=-2; ix<=2; ix++) {
                     for(let iy=0; iy<=3; iy++) {
                         if (Math.random() > 0.2) mundo[x+ix][topo - iy] = 'folha_selva';
@@ -280,9 +406,12 @@
         meuJogador.nome = document.getElementById('nome-jogador').value || 'Jogador';
         document.getElementById('menu-inicial').style.display = 'none';
         document.getElementById('info-rede').style.display = 'flex';
-        document.getElementById('painel-blocos').style.display = 'flex';
+        
+        document.getElementById('painel-inventario').style.display = 'grid';
         document.getElementById('painel-crafting').style.display = 'flex';
+        
         iniciarMusica();
+        renderizarCraftingUI();
     }
 
     function criarServidor() {
@@ -377,8 +506,10 @@
 
         for (let i = esq; i <= dir; i++) {
             for (let j = topo; j <= baixo; j++) {
-                // Vidro e folhas não barram movimento se você quiser (aqui vamos deixar tudo solido exceto ar)
-                if (mundo[i] && mundo[i][j] !== 0 && mundo[i][j] !== 'folha' && mundo[i][j] !== 'folha_selva') return true;
+                let idBloco = mundo[i][j];
+                if (mundo[i] && idBloco !== 0 && REGISTRO_BLOCOS[idBloco] && REGISTRO_BLOCOS[idBloco].colisao) {
+                    return true;
+                }
             }
         }
         return false;
@@ -428,11 +559,11 @@
             }
 
             if (Math.abs(meuJogador.x - d.x) < 20 && Math.abs(meuJogador.y - d.y) < 20) {
-                atualizarInventario(d.tipo, 1);
-                delete drops[idDrop];
-
-                const pacote = { tipo: 'REMOVER_DROP', idDrop: idDrop };
-                if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+                if (adicionarAoInventario(d.tipo, 1)) {
+                    delete drops[idDrop];
+                    const pacote = { tipo: 'REMOVER_DROP', idDrop: idDrop };
+                    if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+                }
             }
         }
 
@@ -452,6 +583,12 @@
         if (['a', 'ArrowLeft'].includes(e.key)) teclas.a = true;
         if (['d', 'ArrowRight'].includes(e.key)) teclas.d = true;
         if (['w', 'ArrowUp', ' '].includes(e.key)) teclas.w = true;
+        
+        if (e.key >= '0' && e.key <= '9') {
+            let num = parseInt(e.key);
+            slotSelecionado = (num === 0) ? 9 : num - 1;
+            renderizarInventarioUI();
+        }
     });
     window.addEventListener('keyup', (e) => {
         if (['a', 'ArrowLeft'].includes(e.key)) teclas.a = false;
@@ -467,20 +604,32 @@
         const gridX = Math.floor(mouseX / TAM_BLOCO);
         const gridY = Math.floor(mouseY / TAM_BLOCO);
 
+        const centroJogadorX = meuJogador.x + meuJogador.width / 2;
+        const centroJogadorY = meuJogador.y + meuJogador.height / 2;
+        const centroAlvoX = gridX * TAM_BLOCO + TAM_BLOCO / 2;
+        const centroAlvoY = gridY * TAM_BLOCO + TAM_BLOCO / 2;
+        const distancia = Math.sqrt(Math.pow(centroAlvoX - centroJogadorX, 2) + Math.pow(centroAlvoY - centroJogadorY, 2));
+
+        if (distancia > ALCANCE_MINERACAO) return; 
+
         if (gridX >= 0 && gridX < LARGURA_MUNDO && gridY >= 0 && gridY < ALTURA_MUNDO) {
             let quebrando = e.button != 2;
             let blocoAlvo = mundo[gridX][gridY];
+            
+            let itemSelecionado = inventario[slotSelecionado];
+            let idItem = itemSelecionado ? itemSelecionado.id : null;
 
             if (quebrando && blocoAlvo !== 0) {
-                criarDrop(gridX, gridY, blocoAlvo);
-                mundo[gridX][gridY] = 0;
-                const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: 0 };
-                if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
-
-            } else if (!quebrando && blocoAlvo === 0 && inventario[blocoAtual] > 0) {
-                mundo[gridX][gridY] = blocoAtual;
-                atualizarInventario(blocoAtual, -1);
-                const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: blocoAtual };
+                if (idItem === 'picareta_cobre') {
+                    criarDrop(gridX, gridY, blocoAlvo);
+                    mundo[gridX][gridY] = 0;
+                    const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: 0 };
+                    if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
+                }
+            } else if (!quebrando && blocoAlvo === 0 && idItem && REGISTRO_BLOCOS[idItem]) {
+                mundo[gridX][gridY] = idItem;
+                removerDoInventario(slotSelecionado, 1);
+                const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: idItem };
                 if (souHost) transmitir(pacote); else if (conexaoCliente) conexaoCliente.send(pacote);
             }
         }
@@ -550,6 +699,14 @@
             ctx.drawImage(texturas[d.tipo], d.x, d.y + flutuacao, 10, 10);
         }
 
+        ctx.beginPath();
+        ctx.arc(meuJogador.x + meuJogador.width / 2, meuJogador.y + meuJogador.height / 2, ALCANCE_MINERACAO, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
         for (let id in jogadores) {
             let p = jogadores[id];
             ctx.fillStyle = p.cor;
@@ -574,31 +731,17 @@
         ctx.restore();
     }
 
-    let contextoAudio;
+    let musicaFundo = null;
 
     function iniciarMusica() {
-        if (contextoAudio) return;
-        contextoAudio = new(window.AudioContext || window.webkitAudioContext)();
-        const escalaPentatonica = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+        if (musicaFundo) return; 
+        
+        musicaFundo = new Audio(MUSICAS.floresta.arquivo); 
+        
+        musicaFundo.loop = true;
+        musicaFundo.volume = 0.3;
 
-        setInterval(() => {
-            if (Math.random() < 0.2) return;
-            const osc = contextoAudio.createOscillator();
-            const ganho = contextoAudio.createGain();
-            osc.type = Math.random() > 0.5 ? 'sine' : 'triangle';
-            let notaBase = escalaPentatonica[Math.floor(Math.random() * escalaPentatonica.length)];
-            osc.frequency.value = Math.random() > 0.9 ? notaBase / 2 : notaBase;
-
-            ganho.gain.setValueAtTime(0, contextoAudio.currentTime);
-            ganho.gain.linearRampToValueAtTime(0.1, contextoAudio.currentTime + 0.1);
-            ganho.gain.exponentialRampToValueAtTime(0.001, contextoAudio.currentTime + 1.5);
-
-            osc.connect(ganho);
-            ganho.connect(contextoAudio.destination);
-
-            osc.start();
-            osc.stop(contextoAudio.currentTime + 1.5);
-        }, 400);
+        musicaFundo.play().catch(erro => console.log("O navegador bloqueou o áudio automático:", erro));
     }
 
     function loopJogo() {
