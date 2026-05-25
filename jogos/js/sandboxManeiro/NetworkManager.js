@@ -8,7 +8,23 @@ class NetworkManager {
         this.meuId = null;
 
         this.peer.on('open', (id) => { 
+            const antigoId = this.meuId;
             this.meuId = id; 
+
+            // Se o ID temporário já tiver sido registrado, move para o ID real
+            if (this.game.player.jogadores[antigoId]) {
+                delete this.game.player.jogadores[antigoId];
+            }
+            if (this.game.player.jogadores['host_temp']) {
+                delete this.game.player.jogadores['host_temp'];
+            }
+            this.game.player.jogadores[id] = this.game.player.meuJogador;
+
+            // Atualiza a interface
+            const meuIdEl = document.getElementById('meu-id');
+            if (meuIdEl && this.souHost) {
+                meuIdEl.innerText = id;
+            }
         });
     }
 
@@ -35,10 +51,12 @@ class NetworkManager {
                 break; 
             }
         }
-        this.game.player.jogadores[this.meuId] = this.game.player.meuJogador;
+        
+        const idAtual = this.meuId || 'host_temp';
+        this.game.player.jogadores[idAtual] = this.game.player.meuJogador;
 
         this.habilitarUIJogando();
-        document.getElementById('meu-id').innerText = this.meuId;
+        document.getElementById('meu-id').innerText = this.meuId || "Gerando...";
 
         this.peer.on('connection', (conn) => {
             this.conexoesHost.push(conn);
@@ -111,6 +129,12 @@ class NetworkManager {
         if (dados.tipo === 'BLOCO') {
             if (this.game.world.mundo[dados.x]) {
                 this.game.world.mundo[dados.x][dados.y] = dados.idBloco;
+                const chave = `${dados.x},${dados.y}`;
+                if (dados.idBloco === 'madeira' || dados.idBloco === 'madeira_selva' || dados.idBloco === 'madeira_pinheiro') {
+                    this.game.world.madeiraColocada.add(chave);
+                } else {
+                    this.game.world.madeiraColocada.delete(chave);
+                }
             }
             if (this.souHost) this.transmitir(dados);
         }

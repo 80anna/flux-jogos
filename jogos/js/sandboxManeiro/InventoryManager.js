@@ -19,10 +19,6 @@ class InventoryManager {
             if (i === this.slotSelecionado) slotDiv.classList.add('selecionado');
             
             if (i < 10) {
-                let hotkey = document.createElement('span');
-                hotkey.className = 'hotkey-inv';
-                hotkey.innerText = (i === 9) ? '0' : (i + 1);
-                slotDiv.appendChild(hotkey);
                 slotDiv.onclick = () => { 
                     this.slotSelecionado = i; 
                     this.renderizarInventarioUI(); 
@@ -48,6 +44,14 @@ class InventoryManager {
                     contador.innerText = item.quantidade;
                     slotDiv.appendChild(contador);
                 }
+            }
+
+            // Garante que o hotkey span seja inserido por último (por cima do item)
+            if (i < 10) {
+                let hotkey = document.createElement('span');
+                hotkey.className = 'hotkey-inv';
+                hotkey.innerText = (i === 9) ? '0' : (i + 1);
+                slotDiv.appendChild(hotkey);
             }
 
             // Configura o arrastar e soltar (Drag and Drop)
@@ -100,12 +104,77 @@ class InventoryManager {
         let mostrouAlgo = false;
 
         Config.RECEITAS.forEach(receita => {
-            if (this.contarItemNoInventario(receita.reqId) >= receita.reqQtd) {
+            // Verifica se o jogador possui TODOS os ingredientes da receita
+            let temTudo = receita.reqs.every(req => this.contarItemNoInventario(req.id) >= req.qtd);
+            
+            if (temTudo) {
                 mostrouAlgo = true;
                 let btn = document.createElement('button');
                 btn.className = 'btn-craft';
-                btn.innerHTML = `<span>${receita.labelReq}</span> ➔ <b>${receita.label}</b>`;
-                btn.onclick = () => this.craftar(receita.reqId, receita.reqQtd, receita.resultado, receita.qtdResultado);
+                
+                // 1. Container de Ingredientes
+                let divIngredientes = document.createElement('div');
+                divIngredientes.className = 'craft-ingredients';
+                
+                receita.reqs.forEach(req => {
+                    let slot = document.createElement('div');
+                    slot.className = 'craft-item-slot';
+                    slot.title = req.label; // Tooltip explicativo
+                    
+                    const tex = this.game.textures.get(req.id);
+                    if (tex) {
+                        let canvas = document.createElement('canvas');
+                        canvas.width = tex.width;
+                        canvas.height = tex.height;
+                        let ctx = canvas.getContext('2d');
+                        ctx.drawImage(tex, 0, 0);
+                        slot.appendChild(canvas);
+                    }
+                    
+                    let spanCount = document.createElement('span');
+                    spanCount.className = 'craft-item-count';
+                    spanCount.innerText = req.qtd;
+                    slot.appendChild(spanCount);
+                    
+                    divIngredientes.appendChild(slot);
+                });
+                
+                btn.appendChild(divIngredientes);
+                
+                // 2. Seta Indicadora
+                let seta = document.createElement('span');
+                seta.className = 'craft-arrow';
+                seta.innerText = '➔';
+                btn.appendChild(seta);
+                
+                // 3. Container de Resultado
+                let divResultado = document.createElement('div');
+                divResultado.className = 'craft-ingredients';
+                
+                let resultSlot = document.createElement('div');
+                resultSlot.className = 'craft-item-slot';
+                resultSlot.style.borderColor = '#ffeb3b'; // Borda amarela destacando o resultado
+                resultSlot.title = receita.label;
+                
+                const resTex = this.game.textures.get(receita.resultado);
+                if (resTex) {
+                    let resCanvas = document.createElement('canvas');
+                    resCanvas.width = resTex.width;
+                    resCanvas.height = resTex.height;
+                    let resCtx = resCanvas.getContext('2d');
+                    resCtx.drawImage(resTex, 0, 0);
+                    resultSlot.appendChild(resCanvas);
+                }
+                
+                let resSpanCount = document.createElement('span');
+                resSpanCount.className = 'craft-item-count';
+                resSpanCount.innerText = receita.qtdResultado;
+                resultSlot.appendChild(resSpanCount);
+                
+                divResultado.appendChild(resultSlot);
+                btn.appendChild(divResultado);
+                
+                btn.onclick = () => this.craftar(receita.reqs, receita.resultado, receita.qtdResultado);
                 lista.appendChild(btn);
             }
         });
@@ -168,9 +237,12 @@ class InventoryManager {
         this.renderizarInventarioUI();
     }
 
-    craftar(ingrediente, qtdNecessaria, resultado, qtdResultado) {
-        if (this.contarItemNoInventario(ingrediente) >= qtdNecessaria) {
-            this.consumirItensParaCrafting(ingrediente, qtdNecessaria);
+    craftar(reqs, resultado, qtdResultado) {
+        let temTudo = reqs.every(req => this.contarItemNoInventario(req.id) >= req.qtd);
+        if (temTudo) {
+            reqs.forEach(req => {
+                this.consumirItensParaCrafting(req.id, req.qtd);
+            });
             this.adicionarAoInventario(resultado, qtdResultado);
         }
     }

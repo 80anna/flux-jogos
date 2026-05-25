@@ -33,6 +33,10 @@ class Game {
         this.blockTempCanvas.height = Config.TAM_BLOCO;
         this.blockTempCtx = this.blockTempCanvas.getContext('2d');
 
+        // Canvas e contexto para iluminação suave (Smooth Lighting)
+        this.lightCanvas = document.createElement('canvas');
+        this.lightCtx = this.lightCanvas.getContext('2d');
+
         // Lista de partículas ativas no mundo
         this.particulas = [];
 
@@ -59,6 +63,7 @@ class Game {
             if (['a', 'ArrowLeft'].includes(e.key)) this.player.teclas.a = true;
             if (['d', 'ArrowRight'].includes(e.key)) this.player.teclas.d = true;
             if (['w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = true;
+            if (['s', 'ArrowDown'].includes(e.key)) this.player.teclas.s = true;
             if (e.key === 'Shift') this.player.teclas.shift = true;
             
             if (e.key >= '0' && e.key <= '9') {
@@ -72,6 +77,7 @@ class Game {
             if (['a', 'ArrowLeft'].includes(e.key)) this.player.teclas.a = false;
             if (['d', 'ArrowRight'].includes(e.key)) this.player.teclas.d = false;
             if (['w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = false;
+            if (['s', 'ArrowDown'].includes(e.key)) this.player.teclas.s = false;
             if (e.key === 'Shift') this.player.teclas.shift = false;
         });
 
@@ -92,26 +98,58 @@ class Game {
             if (distancia > Config.ALCANCE_MINERACAO) return; 
 
             if (gridX >= 0 && gridX < Config.LARGURA_MUNDO && gridY >= 0 && gridY < Config.ALTURA_MUNDO) {
-                let quebrando = e.button != 2;
                 let blocoAlvo = this.world.mundo[gridX][gridY];
+
+                // Identifica se clicou em uma porta ou no topo de uma porta (2 blocos de altura)
+                let ehPorta = blocoAlvo === 'porta' || blocoAlvo === 'porta_aberta';
+                let ehPortaTopo = false;
+                let portaX = gridX, portaY = gridY;
+                
+                if (!ehPorta && gridY + 1 < Config.ALTURA_MUNDO) {
+                    let blocoAbaixo = this.world.mundo[gridX][gridY + 1];
+                    if (blocoAbaixo === 'porta' || blocoAbaixo === 'porta_aberta') {
+                        ehPortaTopo = true;
+                        blocoAlvo = blocoAbaixo;
+                        portaY = gridY + 1;
+                    }
+                }
+
+                // Interação com porta (clique com botão direito para abrir/fechar)
+                if (e.button === 2 && (ehPorta || ehPortaTopo)) {
+                    let novoBloco = blocoAlvo === 'porta' ? 'porta_aberta' : 'porta';
+                    this.world.mundo[portaX][portaY] = novoBloco;
+                    
+                    const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: novoBloco };
+                    if (this.network.souHost) {
+                        this.network.transmitir(pacote);
+                    } else if (this.network.conexaoCliente) {
+                        this.network.conexaoCliente.send(pacote);
+                    }
+                    return;
+                }
+                
+                let quebrando = e.button != 2;
                 
                 let itemSelecionado = this.inventory.getItemSelecionado();
                 let idItem = itemSelecionado ? itemSelecionado.id : null;
 
                 let itemAtributos = idItem ? Config.ATRIBUTOS_ITENS[idItem] : null;
                 let ehPicareta = itemAtributos && itemAtributos.tipo === 'picareta';
+                let chave = `${portaX},${portaY}`;
 
                 if (quebrando && blocoAlvo !== 0 && ehPicareta) {
                     // Ativa animação local de swing
                     this.player.triggerSwing();
 
                     // Cria partículas visuais de quebra de bloco
-                    this.criarParticulas(gridX, gridY, blocoAlvo);
+                    this.criarParticulas(portaX, portaY, blocoAlvo);
 
-                    let chave = `${gridX},${gridY}`;
                     this.world.blockDamage = this.world.blockDamage || {};
 
+                    let ehMadeiraColocada = (blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') && this.world.madeiraColocada.has(chave);
                     let resistencia = Config.REGISTRO_BLOCOS[blocoAlvo]?.resistencia || 1;
+                    if (ehMadeiraColocada) resistencia = 1; // Madeira de construção quebra em 1 hit!
+                    
                     let forca = itemAtributos.forca || 1;
 
                     this.world.blockDamage[chave] = (this.world.blockDamage[chave] || 0) + forca;
@@ -119,24 +157,50 @@ class Game {
                     if (this.world.blockDamage[chave] >= resistencia) {
                         delete this.world.blockDamage[chave];
 
-                        if (blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') {
-                            this.world.quebrarArvoreInteira(gridX, gridY, blocoAlvo);
+                        if ((blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') && !ehMadeiraColocada) {
+                            this.world.quebrarArvoreInteira(portaX, portaY, blocoAlvo);
                         } else {
-                            this.world.criarDrop(gridX, gridY, blocoAlvo);
-                            this.world.mundo[gridX][gridY] = 0;
-                            const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: 0 };
+                            this.world.criarDrop(portaX, portaY, blocoAlvo);
+                            this.world.mundo[portaX][portaY] = 0;
+                            
+                            // Remove do conjunto de madeira colocada
+                            this.world.madeiraColocada.delete(chave);
+
+                            const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: 0 };
                             if (this.network.souHost) {
                                 this.network.transmitir(pacote);
                             } else if (this.network.conexaoCliente) {
                                 this.network.conexaoCliente.send(pacote);
                             }
+
+                            // Quebra plantas e decorações flutuantes diretamente acima
+                            this.world.verificarQuebraPlantaAcima(portaX, portaY);
                         }
                     }
                 } else if (!quebrando && blocoAlvo === 0 && idItem && Config.REGISTRO_BLOCOS[idItem]) {
+                    // Previne a colocação de blocos por cima do corpo de uma porta existente
+                    let blocoAbaixo = (gridY + 1 < Config.ALTURA_MUNDO) ? this.world.mundo[gridX][gridY + 1] : 0;
+                    if (blocoAbaixo === 'porta' || blocoAbaixo === 'porta_aberta') {
+                        return;
+                    }
+
+                    // Se for colocar porta, exige pelo menos 2 blocos verticais livres (gridY e gridY - 1)
+                    if (idItem === 'porta') {
+                        if (gridY - 1 < 0 || this.world.mundo[gridX][gridY - 1] !== 0) {
+                            return;
+                        }
+                    }
+
                     // Ativa animação local de swing para colocação
                     this.player.triggerSwing();
 
                     this.world.mundo[gridX][gridY] = idItem;
+                    
+                    // Se o jogador colocou madeira, registra como madeira de construção colocada
+                    if (idItem === 'madeira' || idItem === 'madeira_selva' || idItem === 'madeira_pinheiro') {
+                        this.world.madeiraColocada.add(chave);
+                    }
+
                     this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
                     const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: idItem };
                     if (this.network.souHost) {
@@ -308,18 +372,33 @@ class Game {
         }
 
         // 3. ÓRBITA CELESTE (SOL E LUA)
-        // Mapeia minutos (0 a 1440) para ângulo (PI a 3*PI para iniciar o nascer no leste/esquerda)
-        let angle = ((this.tempoMinutos / 1440) * 2 * Math.PI) + Math.PI;
         let cx = this.canvas.width / 2;
         let cy = this.canvas.height + 100; // centro do arco deslocado para baixo
-        let rx = this.canvas.width * 0.5; // Raio orbital horizontal dimensionado dinamicamente
-        let ry = cy - 120; // Garante que o pico orbital fique sempre a 120px de altura (visível acima das montanhas)
+        let rx = this.canvas.width * 0.5; // Raio orbital horizontal
+        let ry = cy - 120; // Garante que o pico orbital fique sempre a 120px de altura
         
-        let sunX = cx + Math.cos(angle) * rx;
-        let sunY = cy + Math.sin(angle) * ry;
+        let sunX, sunY, moonX, moonY;
         
-        let moonX = cx + Math.cos(angle + Math.PI) * rx;
-        let moonY = cy + Math.sin(angle + Math.PI) * ry;
+        // O dia vai de 6:00 (360 min) às 18:00 (1080 min)
+        if (this.tempoMinutos >= 360 && this.tempoMinutos < 1080) {
+            let t = (this.tempoMinutos - 360) / 720;
+            let sunAngle = Math.PI + t * Math.PI;
+            sunX = cx + Math.cos(sunAngle) * rx;
+            sunY = cy + Math.sin(sunAngle) * ry;
+            // A lua fica escondida embaixo do horizonte durante o dia
+            moonX = -100;
+            moonY = cy + 100;
+        } else {
+            // A noite vai de 18:00 (1080 min) às 6:00 (360 min)
+            let minDesde18 = (this.tempoMinutos >= 1080) ? (this.tempoMinutos - 1080) : (this.tempoMinutos + 360);
+            let t = minDesde18 / 720;
+            let moonAngle = Math.PI + t * Math.PI;
+            moonX = cx + Math.cos(moonAngle) * rx;
+            moonY = cy + Math.sin(moonAngle) * ry;
+            // O sol fica escondido embaixo do horizonte à noite
+            sunX = -100;
+            sunY = cy + 100;
+        }
 
         // Renderiza Sol
         if (sunY < this.canvas.height) {
@@ -431,7 +510,7 @@ class Game {
         
         for (let i = -1; i < totalArvores; i++) {
             let ax = i * arvoreLargura + offsetFar;
-            let ay = 350 - this.camera.y * 0.25;
+            let ay = 650 - this.camera.y * 0.25;
             
             // Desenha triângulo duplo (estilo pinheiro pixelado)
             this.ctx.beginPath();
@@ -465,6 +544,73 @@ class Game {
         });
     }
 
+    calcularEscuridaoBloco(x, y) {
+        const bloco = this.world.mundo[x] ? this.world.mundo[x][y] : 0;
+        if (bloco === 'tocha' || bloco === 'vidro') return 0;
+
+        // 1. Procura por luz natural (dia) vindo de colunas abertas para o céu nos lados e em cima (raio de 5)
+        let maiorLuzDia = 0;
+        const raioLuz = 5;
+        const inicioX = Math.max(0, x - raioLuz);
+        const fimX = Math.min(Config.LARGURA_MUNDO - 1, x + raioLuz);
+        const inicioY = Math.max(0, y - raioLuz);
+        const fimY = Math.min(Config.ALTURA_MUNDO - 1, y + raioLuz);
+
+        for (let tx = inicioX; tx <= fimX; tx++) {
+            if (!this.world.mundo[tx]) continue;
+            
+            // Encontra a altura do primeiro bloco sólido que bloqueia a luz do sol nesta coluna
+            let yPrimeiroSolido = 0;
+            while (yPrimeiroSolido < Config.ALTURA_MUNDO) {
+                let b = this.world.mundo[tx][yPrimeiroSolido];
+                if (b !== 0 && b !== 'vidro' && Config.REGISTRO_BLOCOS[b] && Config.REGISTRO_BLOCOS[b].colisao) {
+                    break;
+                }
+                yPrimeiroSolido++;
+            }
+
+            for (let ty = inicioY; ty <= fimY; ty++) {
+                // Se ty estiver acima do primeiro bloco sólido, esse bloco (tx, ty) está exposto ao céu
+                if (ty <= yPrimeiroSolido) {
+                    let dist = Math.abs(x - tx) + Math.abs(y - ty);
+                    if (dist <= raioLuz) {
+                        let luz = 1.0 - (dist / (raioLuz + 1));
+                        if (luz > maiorLuzDia) {
+                            maiorLuzDia = luz;
+                        }
+                    }
+                }
+            }
+        }
+
+        let d = 0.95 * (1.0 - maiorLuzDia);
+        if (d <= 0.01) return 0;
+
+        // 2. Procura por tochas próximas para iluminar o local (raio de 5 blocos)
+        let maiorLuzTocha = 0;
+        const raioTocha = 5;
+        const inicioBuscaX = Math.max(0, x - raioTocha);
+        const fimBuscaX = Math.min(Config.LARGURA_MUNDO - 1, x + raioTocha);
+        const inicioBuscaY = Math.max(0, y - raioTocha);
+        const fimBuscaY = Math.min(Config.ALTURA_MUNDO - 1, y + raioTocha);
+
+        for (let tx = inicioBuscaX; tx <= fimBuscaX; tx++) {
+            for (let ty = inicioBuscaY; ty <= fimBuscaY; ty++) {
+                if (this.world.mundo[tx] && this.world.mundo[tx][ty] === 'tocha') {
+                    let dist = Math.abs(x - tx) + Math.abs(y - ty);
+                    if (dist <= raioTocha) {
+                        let luz = 1.0 - (dist / (raioTocha + 1));
+                        if (luz > maiorLuzTocha) {
+                            maiorLuzTocha = luz;
+                        }
+                    }
+                }
+            }
+        }
+
+        return Math.max(0, d * (1.0 - maiorLuzTocha));
+    }
+
     desenhar() {
         this.desenharFundo();
 
@@ -473,8 +619,8 @@ class Game {
 
         let inicioX = Math.max(0, Math.floor(this.camera.x / Config.TAM_BLOCO));
         let fimX = Math.min(Config.LARGURA_MUNDO, Math.ceil((this.camera.x + this.canvas.width) / Config.TAM_BLOCO));
-        let inicioY = Math.max(0, Math.floor(this.camera.y / Config.TAM_BLOCO));
-        let fimY = Math.min(Config.ALTURA_MUNDO, Math.ceil((this.camera.y + this.canvas.height) / Config.TAM_BLOCO));
+        let inicioY = Math.max(0, Math.floor(this.camera.y / Config.TAM_BLOCO) - 1);
+        let fimY = Math.min(Config.ALTURA_MUNDO, Math.ceil((this.camera.y + this.canvas.height) / Config.TAM_BLOCO) + 1);
 
         for (let x = inicioX; x < fimX; x++) {
             for (let y = inicioY; y < fimY; y++) {
@@ -483,22 +629,9 @@ class Game {
                     if (bloco !== 0 && bloco !== undefined) {
                         const tex = this.textures.get(bloco);
                         if (tex) {
-                            if (y > 45 && bloco !== 'vidro') { 
-                                // Limpa o buffer temporário
-                                this.blockTempCtx.clearRect(0, 0, Config.TAM_BLOCO, Config.TAM_BLOCO);
-                                // Desenha a textura original do bloco no buffer
-                                this.blockTempCtx.drawImage(tex, 0, 0);
-                                // Aplica a escuridão usando globalCompositeOperation = 'source-atop'
-                                this.blockTempCtx.save();
-                                this.blockTempCtx.globalCompositeOperation = 'source-atop';
-                                let escuridao = Math.min(0.8, (y - 45) * 0.05);
-                                this.blockTempCtx.fillStyle = `rgba(0,0,0,${escuridao})`;
-                                this.blockTempCtx.fillRect(0, 0, Config.TAM_BLOCO, Config.TAM_BLOCO);
-                                this.blockTempCtx.restore();
-                                // Desenha o bloco sombreado na tela
-                                this.ctx.drawImage(this.blockTempCanvas, x * Config.TAM_BLOCO, y * Config.TAM_BLOCO);
+                            if (bloco === 'porta' || bloco === 'porta_aberta') {
+                                this.ctx.drawImage(tex, x * Config.TAM_BLOCO, (y - 1) * Config.TAM_BLOCO, Config.TAM_BLOCO, Config.TAM_BLOCO * 2);
                             } else {
-                                // Desenha diretamente se não for profundo
                                 this.ctx.drawImage(tex, x * Config.TAM_BLOCO, y * Config.TAM_BLOCO);
                             }
                         }
@@ -535,6 +668,37 @@ class Game {
         this.ctx.setLineDash([]);
 
         this.player.desenharPlayers(this.ctx);
+
+        // 4. MÁSCARA DE ILUMINAÇÃO SUAVE (SMOOTH LIGHTING OVERLAY)
+        let cols = fimX - inicioX;
+        let rows = fimY - inicioY;
+        if (cols > 0 && rows > 0) {
+            this.lightCanvas.width = cols;
+            this.lightCanvas.height = rows;
+            this.lightCtx.clearRect(0, 0, cols, rows);
+            
+            for (let cx = 0; cx < cols; cx++) {
+                let worldX = inicioX + cx;
+                for (let cy = 0; cy < rows; cy++) {
+                    let worldY = inicioY + cy;
+                    let esc = this.calcularEscuridaoBloco(worldX, worldY);
+                    
+                    this.lightCtx.fillStyle = `rgba(5, 5, 20, ${esc})`;
+                    this.lightCtx.fillRect(cx, cy, 1, 1);
+                }
+            }
+            
+            this.ctx.save();
+            this.ctx.imageSmoothingEnabled = true;
+            this.ctx.drawImage(
+                this.lightCanvas,
+                inicioX * Config.TAM_BLOCO,
+                inicioY * Config.TAM_BLOCO,
+                cols * Config.TAM_BLOCO,
+                rows * Config.TAM_BLOCO
+            );
+            this.ctx.restore();
+        }
 
         this.ctx.restore();
 
@@ -591,7 +755,6 @@ class Game {
             this.ctx.drawImage(this.maskCanvas, 0, 0);
         }
 
-        // 6. HUD - SPRINT BAR (FÔLEGO) COM GRADIENTE ELÉTRICO E ESTILO PREMIUM
         const barX = 30;
         const barY = 30;
         const barW = 220;
@@ -605,7 +768,7 @@ class Game {
         this.ctx.shadowBlur = 4;
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         this.ctx.font = 'bold 14px "Outfit", sans-serif';
-        this.ctx.fillText('FÔLEGO (SHIFT)', barX, barY - 8);
+        this.ctx.fillText('Stamina (SHIFT)', barX, barY - 8);
         this.ctx.shadowBlur = 0; // Desativa sombra
 
         // Fundo da barra (Glassmorphic dark capsule)

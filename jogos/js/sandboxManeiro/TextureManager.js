@@ -4,10 +4,10 @@ class TextureManager {
         this.texturas = {};
     }
 
-    criarTextura(nomeId, renderCmds) {
+    criarTextura(nomeId, renderCmds, hBlocos = 1) {
         let c = document.createElement('canvas');
         c.width = Config.TAM_BLOCO;
-        c.height = Config.TAM_BLOCO;
+        c.height = Config.TAM_BLOCO * hBlocos;
         let cx = c.getContext('2d');
         cx.save();
         cx.scale(Config.TAM_BLOCO / 20, Config.TAM_BLOCO / 20);
@@ -325,6 +325,189 @@ class TextureManager {
             cx.fillRect(5, 10, 1, 1); cx.fillRect(14, 7, 1, 1); cx.fillRect(8, 13, 1, 1); cx.fillRect(11, 10, 2, 2);
             cx.fillStyle = '#ffffff';
             cx.fillRect(11, 10, 1, 1); cx.fillRect(5, 10, 1, 1); cx.fillRect(14, 7, 1, 1);
+        });
+
+        // 26. MINÉRIO DE CARVÃO (SUBTERRÂNEO)
+        this.criarTextura('minerio_carvao', (cx) => {
+            // Base de pedra
+            cx.fillStyle = '#757575'; cx.fillRect(0, 0, 20, 20);
+            cx.fillStyle = '#616161'; cx.fillRect(1, 1, 18, 18);
+            // Rachaduras de pedra
+            cx.fillStyle = '#424242';
+            cx.fillRect(2, 4, 6, 2); cx.fillRect(6, 6, 2, 4); cx.fillRect(12, 3, 2, 8); cx.fillRect(8, 14, 8, 2);
+            // Detalhes pretos de carvão
+            cx.fillStyle = '#1a1a1a';
+            cx.fillRect(3, 3, 4, 3); cx.fillRect(13, 5, 3, 4); cx.fillRect(5, 12, 4, 3); cx.fillRect(11, 13, 3, 3);
+            cx.fillStyle = '#2d2d2d';
+            cx.fillRect(4, 4, 2, 2); cx.fillRect(14, 6, 2, 2); cx.fillRect(6, 13, 2, 1); cx.fillRect(12, 14, 1, 1);
+            // Bevel highlights
+            cx.fillStyle = 'rgba(255, 255, 255, 0.15)'; cx.fillRect(0, 0, 20, 1); cx.fillRect(0, 0, 1, 20);
+            cx.fillStyle = 'rgba(0, 0, 0, 0.3)'; cx.fillRect(0, 19, 20, 1); cx.fillRect(19, 0, 1, 20);
+        });
+
+        // 27. CARVÃO (ITEM DROP)
+        this.criarTextura('carvao', (cx) => {
+            // Formato irregular de carvão
+            cx.fillStyle = '#151515';
+            cx.beginPath();
+            cx.moveTo(10, 2);
+            cx.lineTo(17, 7);
+            cx.lineTo(16, 15);
+            cx.lineTo(8, 18);
+            cx.lineTo(3, 11);
+            cx.lineTo(4, 5);
+            cx.closePath();
+            cx.fill();
+            
+            // Detalhes internos tridimensionais
+            cx.fillStyle = '#2a2a2a';
+            cx.beginPath();
+            cx.moveTo(9, 4);
+            cx.lineTo(15, 8);
+            cx.lineTo(14, 14);
+            cx.lineTo(8, 16);
+            cx.lineTo(5, 11);
+            cx.closePath();
+            cx.fill();
+
+            // Facetas de brilho metálico
+            cx.fillStyle = '#555555';
+            cx.fillRect(8, 5, 3, 2);
+            cx.fillRect(6, 10, 2, 3);
+            cx.fillStyle = '#ffffff';
+            cx.fillRect(11, 7, 2, 1);
+            cx.fillRect(8, 12, 1, 1);
+        });
+
+        // 28. TOCHA (ILUMINAÇÃO DE LUGARES)
+        this.criarTextura('tocha', (cx) => {
+            // Bastão de madeira
+            cx.fillStyle = '#8B4513';
+            cx.fillRect(8, 9, 4, 11);
+            cx.fillStyle = '#A0522D';
+            cx.fillRect(9, 10, 2, 10);
+            
+            // Carvão na ponta
+            cx.fillStyle = '#2F4F4F';
+            cx.fillRect(8, 7, 4, 2);
+            cx.fillStyle = '#1C1C1C';
+            cx.fillRect(9, 7, 2, 2);
+            
+            // Chama viva e calorosa (Orange, Yellow, White)
+            cx.fillStyle = '#FF3D00'; // Laranja externo
+            cx.fillRect(6, 2, 8, 5);
+            cx.fillStyle = '#FFEA00'; // Amarelo médio
+            cx.fillRect(7, 3, 6, 3);
+            cx.fillStyle = '#FFFFFF'; // Núcleo branco quente
+            cx.fillRect(8, 4, 4, 2);
+        });
+
+        // 29. CADEIRA
+        this.criarTextura('cadeira', (cx) => {
+            // Assento da cadeira
+            cx.fillStyle = '#CD853F'; cx.fillRect(3, 10, 14, 2);
+            cx.fillStyle = '#8B4513'; cx.fillRect(3, 12, 14, 1);
+            
+            // Encosto
+            cx.fillStyle = '#CD853F'; cx.fillRect(3, 2, 3, 8);
+            cx.fillStyle = '#8B4513'; cx.fillRect(3, 2, 1, 8);
+            // Travas decorativas do encosto
+            cx.fillStyle = '#D2B48C'; cx.fillRect(6, 4, 3, 1); cx.fillRect(6, 7, 3, 1);
+            
+            // Pernas da frente
+            cx.fillStyle = '#8B4513'; cx.fillRect(4, 13, 2, 7); cx.fillRect(14, 13, 2, 7);
+            // Pernas de trás (sombreadas/mais escuras)
+            cx.fillStyle = '#5C2E0B'; cx.fillRect(3, 13, 1, 7); cx.fillRect(13, 13, 1, 7);
+        });
+
+        // 30. MESA
+        this.criarTextura('mesa', (cx) => {
+            // Tampo superior da mesa
+            cx.fillStyle = '#DEB887'; cx.fillRect(1, 4, 18, 3);
+            cx.fillStyle = '#CD853F'; cx.fillRect(1, 7, 18, 1);
+            cx.fillStyle = '#8B4513'; cx.fillRect(1, 8, 18, 1); // Sombra embaixo
+            
+            // Perna esquerda
+            cx.fillStyle = '#CD853F'; cx.fillRect(3, 9, 3, 11);
+            cx.fillStyle = '#8B4513'; cx.fillRect(3, 9, 1, 11);
+            
+            // Perna direita
+            cx.fillStyle = '#CD853F'; cx.fillRect(14, 9, 3, 11);
+            cx.fillStyle = '#8B4513'; cx.fillRect(14, 9, 1, 11);
+            
+            // Trave horizontal de reforço
+            cx.fillStyle = '#5C2E0B'; cx.fillRect(6, 12, 8, 2);
+        });
+
+        // 31. PORTA
+        this.criarTextura('porta', (cx) => {
+            // Fundo da porta
+            cx.fillStyle = '#CD853F'; cx.fillRect(1, 0, 18, 40);
+            
+            // Moldura externa
+            cx.fillStyle = '#8B4513';
+            cx.fillRect(1, 0, 18, 1);  // Topo
+            cx.fillRect(1, 0, 1, 40);   // Esquerda
+            cx.fillRect(18, 0, 1, 40);  // Direita
+            cx.fillRect(1, 39, 18, 1);  // Base
+            
+            // 4 painéis esculpidos verticais para riqueza de detalhes
+            for (let p = 0; p < 4; p++) {
+                let py = 2 + p * 9;
+                cx.fillStyle = '#DEB887'; cx.fillRect(3, py, 14, 7);
+                cx.strokeStyle = '#5C2E0B'; cx.lineWidth = 1; cx.strokeRect(3, py, 14, 7);
+            }
+            
+            // Maçaneta de ouro/latão no centro vertical (y = 19)
+            cx.fillStyle = '#FFD700'; cx.fillRect(14, 19, 3, 2);
+            cx.fillStyle = '#B8860B'; cx.fillRect(15, 19, 1, 2);
+        }, 2);
+
+        // 32. PORTA_ABERTA
+        this.criarTextura('porta_aberta', (cx) => {
+            // Moldura externa da porta vazia (portal)
+            cx.fillStyle = '#8B4513';
+            cx.fillRect(1, 0, 2, 40);   // Batente esquerdo
+            cx.fillRect(17, 0, 2, 40);  // Batente direito
+            cx.fillRect(1, 0, 18, 2);   // Batente superior
+            
+            // Porta aberta e encostada completamente na lateral esquerda (vista como placa fina vertical)
+            cx.fillStyle = '#CD853F'; cx.fillRect(3, 1, 3, 38);
+            
+            // Borda e divisórias da porta na lateral
+            cx.fillStyle = '#8B4513';
+            cx.fillRect(3, 1, 1, 38);
+            cx.fillRect(5, 1, 1, 38);
+            
+            // Reentrâncias dos painéis vistos de perfil lateral
+            cx.fillStyle = '#DEB887';
+            for (let p = 0; p < 4; p++) {
+                let py = 3 + p * 9;
+                cx.fillRect(4, py, 1, 5);
+            }
+            
+            // Maçaneta vista de perfil
+            cx.fillStyle = '#FFD700'; cx.fillRect(4, 19, 1, 2);
+        }, 2);
+
+        // 33. PLATAFORMA DE MADEIRA
+        this.criarTextura('plataforma_madeira', (cx) => {
+            // Prancha de madeira superior
+            cx.fillStyle = '#DEB887'; cx.fillRect(0, 0, 20, 3);
+            cx.fillStyle = '#CD853F'; cx.fillRect(0, 3, 20, 1);
+            cx.fillStyle = '#8B4513'; cx.fillRect(0, 4, 20, 1); // Sombreamento da prancha
+            
+            // Suportes / Mão francesa nas laterais inferiores
+            cx.fillStyle = '#8B4513';
+            // Suporte esquerdo
+            cx.fillRect(1, 5, 2, 2);
+            cx.fillRect(2, 7, 2, 2);
+            cx.fillRect(3, 9, 1, 1);
+            
+            // Suporte direito
+            cx.fillRect(17, 5, 2, 2);
+            cx.fillRect(16, 7, 2, 2);
+            cx.fillRect(16, 9, 1, 1);
         });
     }
 

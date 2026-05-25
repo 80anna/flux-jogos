@@ -13,10 +13,11 @@ class PlayerManager {
             heldItemId: null,
             swingTimer: 0,
             sprintBar: 100,
-            correndo: false
+            correndo: false,
+            sprintExausto: false
         };
         this.jogadores = {};
-        this.teclas = { a: false, d: false, w: false, shift: false };
+        this.teclas = { a: false, d: false, w: false, s: false, shift: false };
         this.swingTimer = 0; // Temporizador local da animação do braço
     }
 
@@ -24,7 +25,7 @@ class PlayerManager {
         this.swingTimer = 15; // 15 frames de duração para a batida
     }
 
-    verificarColisao(nx, ny, width = this.meuJogador.width, height = this.meuJogador.height) {
+    verificarColisao(nx, ny, width = this.meuJogador.width, height = this.meuJogador.height, checarPlataforma = false) {
         const esq = Math.floor(nx / Config.TAM_BLOCO);
         const dir = Math.floor((nx + width) / Config.TAM_BLOCO);
         const topo = Math.floor(ny / Config.TAM_BLOCO);
@@ -36,8 +37,31 @@ class PlayerManager {
             for (let j = topo; j <= baixo; j++) {
                 if (this.game.world.mundo[i]) {
                     let idBloco = this.game.world.mundo[i][j];
-                    if (idBloco !== 0 && Config.REGISTRO_BLOCOS[idBloco] && Config.REGISTRO_BLOCOS[idBloco].colisao) {
-                        return true;
+                    if (idBloco !== 0 && Config.REGISTRO_BLOCOS[idBloco]) {
+                        if (Config.REGISTRO_BLOCOS[idBloco].colisao) {
+                            return true;
+                        }
+                        if (checarPlataforma && idBloco === 'plataforma_madeira') {
+                            if (this.teclas.s) {
+                                continue;
+                            }
+                            let vy = 0;
+                            if (width === this.meuJogador.width && height === this.meuJogador.height) {
+                                vy = this.meuJogador.vy;
+                            }
+                            let baseAnterior = (ny - vy) + height;
+                            let topoPlataforma = j * Config.TAM_BLOCO;
+                            if (baseAnterior <= topoPlataforma + 6) {
+                                return true;
+                            }
+                        }
+                    }
+                    // Adiciona colisão física para a metade superior da porta (2 blocos de altura)
+                    if (j + 1 < Config.ALTURA_MUNDO) {
+                        let blocoAbaixo = this.game.world.mundo[i][j + 1];
+                        if (blocoAbaixo === 'porta') {
+                            return true;
+                        }
                     }
                 }
             }
@@ -46,9 +70,20 @@ class PlayerManager {
     }
 
     atualizarFisica() {
-        // Gerenciamento de Sprint (Fôlego)
+        // Gerenciamento de Sprint (Fôlego) com Cooldown
         let movendoHorizontal = this.teclas.a || this.teclas.d;
-        if (this.teclas.shift && this.meuJogador.sprintBar > 0 && movendoHorizontal) {
+        
+        // Ativa o cooldown se esgotar completamente
+        if (this.meuJogador.sprintBar <= 0) {
+            this.meuJogador.sprintExausto = true;
+        }
+        // Desativa o cooldown apenas quando recarregar 100%
+        if (this.meuJogador.sprintExausto && this.meuJogador.sprintBar >= 100) {
+            this.meuJogador.sprintExausto = false;
+        }
+
+        // Permite correr se não estiver com fadiga (exausto)
+        if (this.teclas.shift && this.meuJogador.sprintBar > 0 && movendoHorizontal && !this.meuJogador.sprintExausto) {
             this.meuJogador.correndo = true;
             this.meuJogador.sprintBar = Math.max(0, this.meuJogador.sprintBar - 0.6);
         } else {
@@ -73,13 +108,15 @@ class PlayerManager {
         this.meuJogador.y += this.meuJogador.vy;
 
         let noChao = false;
-        if (this.verificarColisao(this.meuJogador.x, this.meuJogador.y)) {
+        let checarPlataforma = this.meuJogador.vy >= 0;
+        if (this.verificarColisao(this.meuJogador.x, this.meuJogador.y, this.meuJogador.width, this.meuJogador.height, checarPlataforma)) {
             if (this.meuJogador.vy > 0) noChao = true;
             this.meuJogador.y -= this.meuJogador.vy;
             this.meuJogador.vy = 0;
         }
 
-        if (this.teclas.w && noChao) this.meuJogador.vy = -12;
+        // Pulo aumentado para força -15
+        if (this.teclas.w && noChao) this.meuJogador.vy = -15;
 
         // Decrementa animação de swing local
         if (this.swingTimer > 0) {
@@ -97,7 +134,8 @@ class PlayerManager {
             d.vy += 0.48;
             d.y += d.vy;
 
-            if (this.verificarColisao(d.x, d.y, 12, 12)) {
+            // Drops colidem com plataformas também
+            if (this.verificarColisao(d.x, d.y, 12, 12, d.vy >= 0)) {
                 d.y -= d.vy;
                 d.vy = 0;
             }

@@ -14,6 +14,7 @@ class WorldManager {
                 tamanho: 40 + Math.random() * 60 
             });
         }
+        this.madeiraColocada = new Set();
     }
 
     gerarMundo() {
@@ -68,6 +69,27 @@ class WorldManager {
                 if (this.mundo[cx] && this.mundo[cx][cy + 1]) this.mundo[cx][cy + 1] = 0;
                 cx += Math.random() > 0.5 ? 1 : -1;
                 cy += Math.random() > 0.5 ? 1 : -1;
+            }
+        }
+
+        // Geração de Veias de Carvão no Subsolo (Clusters) - Frequência aumentada e veias maiores (pelo menos 10 blocos)
+        let totalVeias = Math.floor((Config.LARGURA_MUNDO * Config.ALTURA_MUNDO) / 150);
+        for (let v = 0; v < totalVeias; v++) {
+            let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
+            let cy = 45 + Math.floor(Math.random() * (Config.ALTURA_MUNDO - 55));
+            
+            let tamVeia = 10 + Math.floor(Math.random() * 6); // Pelo menos 10 blocos por veia (10 a 15 blocos)
+            for (let b = 0; b < tamVeia; b++) {
+                if (this.mundo[cx] && this.mundo[cx][cy] === 'pedra') {
+                    this.mundo[cx][cy] = 'minerio_carvao';
+                }
+                cx += Math.floor(Math.random() * 3) - 1;
+                cy += Math.floor(Math.random() * 3) - 1;
+                
+                if (cx < 0) cx = 0;
+                if (cx >= Config.LARGURA_MUNDO) cx = Config.LARGURA_MUNDO - 1;
+                if (cy < 45) cy = 45;
+                if (cy >= Config.ALTURA_MUNDO) cy = Config.ALTURA_MUNDO - 1;
             }
         }
 
@@ -144,9 +166,12 @@ class WorldManager {
     }
 
     criarDrop(x, y, tipo) {
+        let tipoDrop = tipo;
+        if (tipo === 'minerio_carvao') tipoDrop = 'carvao';
+
         const idDrop = Math.random().toString(36).substr(2, 9);
         const offset = Config.TAM_BLOCO / 4;
-        const novoDrop = { x: x * Config.TAM_BLOCO + offset, y: y * Config.TAM_BLOCO + offset, vy: -3, tipo: tipo };
+        const novoDrop = { x: x * Config.TAM_BLOCO + offset, y: y * Config.TAM_BLOCO + offset, vy: -3, tipo: tipoDrop };
         this.drops[idDrop] = novoDrop;
 
         const pacote = { tipo: 'CRIAR_DROP', idDrop: idDrop, drop: novoDrop };
@@ -164,6 +189,28 @@ class WorldManager {
             this.game.network.transmitir(pacote);
         } else if (this.game.network.conexaoCliente) {
             this.game.network.conexaoCliente.send(pacote);
+        }
+    }
+
+    verificarQuebraPlantaAcima(x, y) {
+        let yAcima = y - 1;
+        if (yAcima >= 0) {
+            let blocoAcima = this.mundo[x] ? this.mundo[x][yAcima] : 0;
+            const plantas = ['grama_alta', 'arbusto', 'flor_vermelha', 'flor_amarela', 'cacto', 'arbusto_congelado', 'arbusto_seco', 'bambu', 'arbusto_florido', 'tocha'];
+            if (plantas.includes(blocoAcima)) {
+                this.criarDrop(x, yAcima, blocoAcima);
+                this.mundo[x][yAcima] = 0;
+                
+                const pacote = { tipo: 'BLOCO', x: x, y: yAcima, idBloco: 0 };
+                if (this.game.network.souHost) {
+                    this.game.network.transmitir(pacote);
+                } else if (this.game.network.conexaoCliente) {
+                    this.game.network.conexaoCliente.send(pacote);
+                }
+                
+                // Recursivamente verifica se havia outra planta acima (ex: cactos múltiplos)
+                this.verificarQuebraPlantaAcima(x, yAcima);
+            }
         }
     }
 
@@ -205,7 +252,8 @@ class WorldManager {
                         let chave = `${v.x},${v.y}`;
                         if (!visitados.has(chave)) {
                             let vizBloco = this.mundo[v.x] ? this.mundo[v.x][v.y] : 0;
-                            if (vizBloco === tipoMadeira || vizBloco === tipoFolha) {
+                            let ehMadeiraColocada = (vizBloco === 'madeira' || vizBloco === 'madeira_selva' || vizBloco === 'madeira_pinheiro') && this.madeiraColocada.has(chave);
+                            if ((vizBloco === tipoMadeira && !ehMadeiraColocada) || vizBloco === tipoFolha) {
                                 visitados.add(chave);
                                 fila.push(v);
                             }

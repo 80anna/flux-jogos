@@ -2,7 +2,7 @@ class Config {
     static TAM_BLOCO = 24;
     static LARGURA_MUNDO = 2000;
     static ALTURA_MUNDO = 1000;
-    static ALCANCE_MINERACAO = 5 * 24; // 5 * TAM_BLOCO
+    static ALCANCE_MINERACAO = 8 * 24; // 8 * TAM_BLOCO (alcance aumentado)
     static MAX_STACK = 9999;
     static ASSET_PATH = 'assets/sandboxManeiro/';
     
@@ -40,6 +40,15 @@ class Config {
         'arbusto_seco': { colisao: false, resistencia: 1 },
         'bambu': { colisao: false, resistencia: 1 },
         'arbusto_florido': { colisao: false, resistencia: 1 },
+        // Blocos novos
+        'minerio_carvao': { colisao: true, resistencia: 5 },
+        'tocha': { colisao: false, resistencia: 1 },
+        // Blocos de Decoração e Plataformas
+        'cadeira': { colisao: false, resistencia: 1 },
+        'mesa': { colisao: false, resistencia: 1 },
+        'porta': { colisao: true, resistencia: 1 },
+        'porta_aberta': { colisao: false, resistencia: 1 },
+        'plataforma_madeira': { colisao: false, resistencia: 1 }
     };
 
     static ATRIBUTOS_ITENS = {
@@ -54,10 +63,15 @@ class Config {
     };
 
     static RECEITAS = [
-        { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas', reqId: 'madeira', reqQtd: 2, labelReq: '2 Madeira' },
-        { resultado: 'tijolo_pedra', qtdResultado: 4, label: '4 Tijolos', reqId: 'pedra', reqQtd: 4, labelReq: '4 Pedra' },
-        { resultado: 'vidro', qtdResultado: 1, label: '1 Vidro', reqId: 'areia', reqQtd: 2, labelReq: '2 Areia' },
-        { resultado: 'gelo', qtdResultado: 1, label: '1 Gelo', reqId: 'neve', reqQtd: 4, labelReq: '4 Neve' }
+        { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas', reqs: [{ id: 'madeira', qtd: 1, label: '1 Madeira' }] },
+        { resultado: 'tijolo_pedra', qtdResultado: 4, label: '4 Tijolos', reqs: [{ id: 'pedra', qtd: 4, label: '4 Pedras' }] },
+        { resultado: 'vidro', qtdResultado: 1, label: '1 Vidro', reqs: [{ id: 'areia', qtd: 2, label: '1 Areia' }] },
+        { resultado: 'gelo', qtdResultado: 1, label: '1 Gelo', reqs: [{ id: 'neve', qtd: 4, label: '4 Neves' }] },
+        { resultado: 'tocha', qtdResultado: 4, label: '4 Tochas', reqs: [{ id: 'carvao', qtd: 1, label: '1 Carvão' }, { id: 'tabua', qtd: 1, label: '1 Tábua' }] },
+        { resultado: 'cadeira', qtdResultado: 1, label: '1 Cadeira', reqs: [{ id: 'tabua', qtd: 4, label: '4 Tábuas' }] },
+        { resultado: 'mesa', qtdResultado: 1, label: '1 Mesa', reqs: [{ id: 'tabua', qtd: 6, label: '6 Tábuas' }] },
+        { resultado: 'porta', qtdResultado: 1, label: '1 Porta', reqs: [{ id: 'tabua', qtd: 6, label: '6 Tábuas' }] },
+        { resultado: 'plataforma_madeira', qtdResultado: 4, label: '4 Plataformas', reqs: [{ id: 'tabua', qtd: 2, label: '2 Tábuas' }] }
     ];
 }
 // Vincula ao escopo global explicitamente
