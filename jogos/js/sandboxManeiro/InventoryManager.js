@@ -4,8 +4,17 @@ class InventoryManager {
         this.inventario = new Array(Config.TOTAL_SLOTS).fill(null);
         this.slotSelecionado = 0;
         
-        // Inicializa item inicial
+        // Inicializa itens iniciais
         this.inventario[0] = { id: 'picareta_cobre', quantidade: 1 };
+        this.inventario[1] = { id: 'espada_cobre', quantidade: 1 };
+
+        // Inicializa ou reaproveita o elemento de tooltip no DOM
+        this.tooltip = document.getElementById('inventory-tooltip');
+        if (!this.tooltip) {
+            this.tooltip = document.createElement('div');
+            this.tooltip.id = 'inventory-tooltip';
+            document.body.appendChild(this.tooltip);
+        }
     }
 
     renderizarInventarioUI() {
@@ -29,7 +38,6 @@ class InventoryManager {
             if (item) {
                 const tex = this.game.textures.get(item.id);
                 if (tex) {
-                    // Crie um elemento canvas para desenhar a textura de forma nítida e evitar o bug do pixel de baixo vazando no topo
                     let itemCanvas = document.createElement('canvas');
                     itemCanvas.width = tex.width;
                     itemCanvas.height = tex.height;
@@ -57,7 +65,15 @@ class InventoryManager {
             // Configura o arrastar e soltar (Drag and Drop)
             slotDiv.draggable = !!item;
 
+            // Adiciona eventos do Tooltip se o slot contiver um item
+            if (item) {
+                slotDiv.addEventListener('mouseenter', (e) => this.mostrarTooltip(e, item.id, item.quantidade));
+                slotDiv.addEventListener('mousemove', (e) => this.posicionarTooltip(e));
+                slotDiv.addEventListener('mouseleave', () => this.ocultarTooltip());
+            }
+
             slotDiv.addEventListener('dragstart', (e) => {
+                this.ocultarTooltip(); // Oculta o tooltip ao arrastar
                 e.dataTransfer.setData('text/plain', i);
                 slotDiv.classList.add('arrastando');
             });
@@ -119,7 +135,10 @@ class InventoryManager {
                 receita.reqs.forEach(req => {
                     let slot = document.createElement('div');
                     slot.className = 'craft-item-slot';
-                    slot.title = req.label; // Tooltip explicativo
+                    
+                    slot.addEventListener('mouseenter', (e) => this.mostrarTooltip(e, req.id, req.qtd));
+                    slot.addEventListener('mousemove', (e) => this.posicionarTooltip(e));
+                    slot.addEventListener('mouseleave', () => this.ocultarTooltip());
                     
                     const tex = this.game.textures.get(req.id);
                     if (tex) {
@@ -154,7 +173,10 @@ class InventoryManager {
                 let resultSlot = document.createElement('div');
                 resultSlot.className = 'craft-item-slot';
                 resultSlot.style.borderColor = '#ffeb3b'; // Borda amarela destacando o resultado
-                resultSlot.title = receita.label;
+                
+                resultSlot.addEventListener('mouseenter', (e) => this.mostrarTooltip(e, receita.resultado, receita.qtdResultado));
+                resultSlot.addEventListener('mousemove', (e) => this.posicionarTooltip(e));
+                resultSlot.addEventListener('mouseleave', () => this.ocultarTooltip());
                 
                 const resTex = this.game.textures.get(receita.resultado);
                 if (resTex) {
@@ -244,11 +266,124 @@ class InventoryManager {
                 this.consumirItensParaCrafting(req.id, req.qtd);
             });
             this.adicionarAoInventario(resultado, qtdResultado);
+            SoundEffects.play('craft');
         }
     }
 
     getItemSelecionado() {
         return this.inventario[this.slotSelecionado];
+    }
+
+    mostrarTooltip(e, idItem, quantidade = null) {
+        if (!idItem) return;
+
+        let label = idItem.replace(/_/g, ' ');
+        let tipo = "Material";
+        let statsHtml = "";
+        let desc = "";
+
+        // Determina os atributos do item
+        let attrs = Config.ATRIBUTOS_ITENS[idItem];
+        let registro = Config.REGISTRO_BLOCOS[idItem];
+
+        if (attrs) {
+            if (attrs.tipo === 'espada') {
+                tipo = "⚔️ Arma de Combate";
+                statsHtml += `<div class="tooltip-stat">⚔️ Dano: <strong>${attrs.dano} HP</strong></div>`;
+                statsHtml += `<div class="tooltip-stat">⏱️ Cooldown: <strong>0.58s</strong></div>`;
+                desc = "Uma lâmina afiada perfeita para fatiar slimes e repelir zumbis em área.";
+            } else if (attrs.tipo === 'picareta') {
+                tipo = "⛏️ Ferramenta";
+                statsHtml += `<div class="tooltip-stat">⛏️ Força: <strong>${attrs.forca}</strong></div>`;
+                statsHtml += `<div class="tooltip-stat">⚔️ Dano: <strong>3 HP</strong></div>`;
+                desc = "Essencial para minerar rochas, minérios resistentes e derrubar árvores.";
+            }
+        } else if (registro) {
+            tipo = "🧱 Bloco Sólido";
+            if (registro.colisao === false) {
+                tipo = "🌿 Bloco Decorativo";
+            }
+            statsHtml += `<div class="tooltip-stat">🧱 Resistência: <strong>${registro.resistencia}</strong></div>`;
+            statsHtml += `<div class="tooltip-stat">🚶 Colisão: <strong>${registro.colisao ? 'Sólido' : 'Atravessável'}</strong></div>`;
+            
+            // Descrições personalizadas para blocos comuns
+            if (idItem === 'porta' || idItem === 'porta_aberta') {
+                desc = "Uma porta de madeira de 2 blocos de altura. Clique com botão direito para abrir/fechar.";
+            } else if (idItem === 'plataforma_madeira') {
+                desc = "Plataforma unidirecional. Atravesse pulando ou pressione para baixo (S) para descer.";
+            } else if (idItem === 'cadeira') {
+                desc = "Uma bela cadeira de madeira para decorar seu abrigo.";
+            } else if (idItem === 'mesa') {
+                desc = "Uma mesa de madeira resistente. Combina com as cadeiras.";
+            } else if (idItem === 'tocha') {
+                desc = "Ilumina o cenário em volta e afasta a escuridão absoluta das cavernas.";
+            } else if (idItem === 'lama') {
+                desc = "Bloco de lama úmida obtido nas camadas superficiais de transição.";
+            } else if (idItem === 'granito') {
+                desc = "Pedra mineral densa e decorativa extraída das cavernas rochosas profundas.";
+            } else {
+                desc = "Bloco de construção comum. Posicione no mundo para erguer estruturas.";
+            }
+        } else {
+            // Itens de drop / materiais comuns
+            if (idItem === 'carvao') {
+                tipo = "💎 Minério";
+                desc = "Carvão bruto extraído do subsolo. Usado para fabricar tochas.";
+            } else if (idItem === 'gel') {
+                tipo = "🧪 Material Biológico";
+                desc = "Gel viscoso e inflamável obtido de slimes. Excelente para fazer tochas.";
+            } else if (idItem === 'carne_podre') {
+                tipo = "🥩 Drop de Monstro";
+                desc = "Carne em decomposição dropada por zumbis. Cheira muito mal.";
+            } else {
+                tipo = "📦 Recurso";
+                desc = "Recurso de inventário acumulável usado em receitas de fabricação.";
+            }
+        }
+
+        let conteudo = `
+            <div class="tooltip-title">${label}</div>
+            <div class="tooltip-type">${tipo}</div>
+            <div class="tooltip-stats">${statsHtml}</div>
+        `;
+        if (quantidade) {
+            conteudo += `<div class="tooltip-stat">📦 Quantidade: <strong>${quantidade}</strong></div>`;
+        }
+        if (desc) {
+            conteudo += `<div class="tooltip-desc">${desc}</div>`;
+        }
+
+        this.tooltip.innerHTML = conteudo;
+        this.tooltip.style.display = 'block';
+        
+        // Posicionamento inteligente próximo ao cursor
+        this.posicionarTooltip(e);
+        
+        // Fade in suave
+        setTimeout(() => {
+            this.tooltip.style.opacity = '1';
+        }, 10);
+    }
+
+    posicionarTooltip(e) {
+        let tx = e.pageX + 15;
+        let ty = e.pageY + 15;
+        
+        // Evita que o tooltip saia das bordas da tela
+        if (tx + this.tooltip.offsetWidth > window.innerWidth) {
+            tx = e.pageX - this.tooltip.offsetWidth - 15;
+        }
+        if (ty + this.tooltip.offsetHeight > window.innerHeight) {
+            ty = e.pageY - this.tooltip.offsetHeight - 15;
+        }
+        
+        this.tooltip.style.left = tx + 'px';
+        this.tooltip.style.top = ty + 'px';
+    }
+
+    ocultarTooltip() {
+        this.tooltip.style.opacity = '0';
+        this.tooltip.style.display = 'none';
     }
 }
 window.InventoryManager = InventoryManager;

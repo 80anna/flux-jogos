@@ -4,6 +4,7 @@ class WorldManager {
         this.mundo = [];
         this.drops = {};
         this.nuvens = [];
+        this.inimigos = []; // Lista de inimigos ativos no mundo
 
         // Inicializa nuvens
         for (let i = 0; i < 60; i++) {
@@ -59,16 +60,78 @@ class WorldManager {
             }
         }
 
-        // Cavernas
-        for (let i = 0; i < 60; i++) {
+        // Cavernas Melhores (Gerador de túneis de largura variável e câmaras amplas)
+        for (let i = 0; i < 110; i++) {
             let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
-            let cy = 50 + Math.floor(Math.random() * 50);
-            for (let passo = 0; passo < 200; passo++) {
-                if (this.mundo[cx] && this.mundo[cx][cy]) this.mundo[cx][cy] = 0;
-                if (this.mundo[cx + 1] && this.mundo[cx + 1][cy]) this.mundo[cx + 1][cy] = 0;
-                if (this.mundo[cx] && this.mundo[cx][cy + 1]) this.mundo[cx][cy + 1] = 0;
-                cx += Math.random() > 0.5 ? 1 : -1;
-                cy += Math.random() > 0.5 ? 1 : -1;
+            let cy = 40 + Math.floor(Math.random() * (Config.ALTURA_MUNDO - 60)); // espalha mais verticalmente!
+            
+            let raioTudo = 1 + Math.floor(Math.random() * 3); // raio de 1 a 3 blocos
+            for (let passo = 0; passo < 250; passo++) {
+                // Varia o raio do túnel organicamente para criar passagens estreitas e salões amplos
+                if (passo % 15 === 0) {
+                    raioTudo = Math.max(1, Math.min(3, raioTudo + (Math.random() > 0.5 ? 1 : -1)));
+                }
+                
+                // Escava um círculo de ar
+                for (let dx = -raioTudo; dx <= raioTudo; dx++) {
+                    for (let dy = -raioTudo; dy <= raioTudo; dy++) {
+                        if (dx*dx + dy*dy <= raioTudo*raioTudo + 0.5) {
+                            let ex = cx + dx;
+                            let ey = cy + dy;
+                            if (ex >= 0 && ex < Config.LARGURA_MUNDO && ey >= 0 && ey < Config.ALTURA_MUNDO) {
+                                this.mundo[ex][ey] = 0;
+                            }
+                        }
+                    }
+                }
+                
+                // Movimento sinuoso (Random Walk aprimorado)
+                cx += Math.floor(Math.random() * 3) - 1;
+                cy += Math.floor(Math.random() * 3) - 1;
+                
+                // Mantém dentro dos limites verticais saudáveis
+                if (cy < 35) cy = 35;
+                if (cy > Config.ALTURA_MUNDO - 10) cy = Config.ALTURA_MUNDO - 10;
+            }
+        }
+
+        // Geração de Manchas de Lama (Mud patches in the transition layer)
+        let totalManchasLama = Math.floor(Config.LARGURA_MUNDO / 3);
+        for (let m = 0; m < totalManchasLama; m++) {
+            let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
+            let cy = 35 + Math.floor(Math.random() * 20); // Camadas de terra/pedra de transição
+            
+            let tamMancha = 12 + Math.floor(Math.random() * 10); // Aglomerados ricos de 12 a 21 blocos
+            for (let b = 0; b < tamMancha; b++) {
+                if (this.mundo[cx] && (this.mundo[cx][cy] === 'terra' || this.mundo[cx][cy] === 'pedra')) {
+                    this.mundo[cx][cy] = 'lama';
+                }
+                cx += Math.floor(Math.random() * 3) - 1;
+                cy += Math.floor(Math.random() * 3) - 1;
+                if (cx < 0) cx = 0;
+                if (cx >= Config.LARGURA_MUNDO) cx = Config.LARGURA_MUNDO - 1;
+                if (cy < 0) cy = 0;
+                if (cy >= Config.ALTURA_MUNDO) cy = Config.ALTURA_MUNDO - 1;
+            }
+        }
+
+        // Geração de Manchas de Granito (Granite patches in rock layers)
+        let totalManchasGranito = Math.floor(Config.LARGURA_MUNDO / 4);
+        for (let m = 0; m < totalManchasGranito; m++) {
+            let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
+            let cy = 50 + Math.floor(Math.random() * 150); // Camadas de rocha profunda
+            
+            let tamMancha = 15 + Math.floor(Math.random() * 12); // Aglomerados de 15 a 26 blocos
+            for (let b = 0; b < tamMancha; b++) {
+                if (this.mundo[cx] && this.mundo[cx][cy] === 'pedra') {
+                    this.mundo[cx][cy] = 'granito';
+                }
+                cx += Math.floor(Math.random() * 3) - 1;
+                cy += Math.floor(Math.random() * 3) - 1;
+                if (cx < 0) cx = 0;
+                if (cx >= Config.LARGURA_MUNDO) cx = Config.LARGURA_MUNDO - 1;
+                if (cy < 0) cy = 0;
+                if (cy >= Config.ALTURA_MUNDO) cy = Config.ALTURA_MUNDO - 1;
             }
         }
 
@@ -289,6 +352,215 @@ class WorldManager {
                 }
             }
         });
+    }
+
+    spawnInimigos() {
+        this.spawnCooldown = this.spawnCooldown !== undefined ? this.spawnCooldown : 0;
+        if (this.spawnCooldown > 0) {
+            this.spawnCooldown--;
+            return;
+        }
+
+        if (this.inimigos.length >= 8) return; // Limite de inimigos simultâneos reduzido para evitar aglomeração
+
+        let H = this.game.tempoMinutos / 60;
+        let eDia = H >= 6 && H < 18;
+
+        // Determina qual inimigo spawnar com base no ciclo dia/noite
+        let tipoInimigo = '';
+        if (eDia) {
+            // De dia spawna apenas Slime Azul
+            if (Math.random() < 0.15) {
+                tipoInimigo = 'slime_azul';
+            }
+        } else {
+            // De noite spawna apenas Zumbi
+            if (Math.random() < 0.2) {
+                tipoInimigo = 'zombie';
+            }
+        }
+
+        if (!tipoInimigo) return;
+
+        // Define um cooldown de 4 segundos (240 frames) para tentativas de spawn
+        this.spawnCooldown = 240;
+
+        // Spawna ESTRITAMENTE fora da tela visível do jogador (câmera)
+        let cam = this.game.camera;
+        let spawnLeft = Math.random() > 0.5;
+        let spawnX = 0;
+        
+        if (spawnLeft) {
+            // 100 a 300 pixels para a esquerda da borda esquerda da tela
+            spawnX = cam.x - (100 + Math.random() * 200);
+        } else {
+            // 100 a 300 pixels para a direita da borda direita da tela
+            spawnX = cam.x + this.game.canvas.width + (100 + Math.random() * 200);
+        }
+        
+        // Verifica limites do mundo
+        if (spawnX < 50 || spawnX > Config.LARGURA_MUNDO * Config.TAM_BLOCO - 50) return;
+
+        let gridX = Math.floor(spawnX / Config.TAM_BLOCO);
+        
+        // Encontra o bloco de superfície do terreno naquela coordenada X
+        let spawnY = 0;
+        for (let y = 0; y < Config.ALTURA_MUNDO; y++) {
+            if (this.mundo[gridX] && this.mundo[gridX][y] !== 0 && Config.REGISTRO_BLOCOS[this.mundo[gridX][y]]?.colisao) {
+                spawnY = (y - 2) * Config.TAM_BLOCO; // Spawn ligeiramente acima do solo
+                break;
+            }
+        }
+
+        if (spawnY <= 0) return;
+
+        if (tipoInimigo === 'slime_azul') {
+            this.inimigos.push({
+                id: Math.random().toString(36).substr(2, 9),
+                tipo: 'slime_azul',
+                x: spawnX,
+                y: spawnY,
+                vx: 0,
+                vy: 0,
+                width: 22,
+                height: 16,
+                vida: 50,
+                maxVida: 50,
+                dano: 15,
+                hopTimer: Math.random() * 60,
+                dropItem: 'gel'
+            });
+        } else if (tipoInimigo === 'zombie') {
+            this.inimigos.push({
+                id: Math.random().toString(36).substr(2, 9),
+                tipo: 'zombie',
+                x: spawnX,
+                y: spawnY,
+                vx: 0,
+                vy: 0,
+                width: 17,
+                height: 31,
+                vida: 70,
+                maxVida: 70,
+                dano: 25,
+                dropItem: 'carne_podre',
+                growlTimer: Math.random() * 150
+            });
+            SoundEffects.play('zombie_growl');
+        }
+    }
+
+    atualizarInimigos() {
+        let player = this.game.player.meuJogador;
+        
+        for (let i = this.inimigos.length - 1; i >= 0; i--) {
+            let enemy = this.inimigos[i];
+            
+            // Se o inimigo estiver muito distante do jogador (ex: > 1500px), despawna para liberar memória
+            let distPlayer = Math.abs(enemy.x - player.x);
+            if (distPlayer > 2000) {
+                this.inimigos.splice(i, 1);
+                continue;
+            }
+
+            // Aplica gravidade básica
+            enemy.vy += 0.72;
+            if (enemy.vy > 14.4) enemy.vy = 14.4;
+            
+            // Movimento Vertical com colisão
+            enemy.y += enemy.vy;
+            if (this.game.player.verificarColisao(enemy.x, enemy.y, enemy.width, enemy.height, enemy.vy >= 0)) {
+                enemy.y -= enemy.vy;
+                enemy.vy = 0;
+            }
+
+            // Movimento Horizontal e IA
+            if (enemy.tipo === 'slime_azul') {
+                enemy.hopTimer++;
+                // Slime Azul salta a cada 120 frames (2 segundos)
+                if (enemy.hopTimer >= 120) {
+                    enemy.hopTimer = Math.random() * 20; // reinicia com staggering
+                    enemy.vy = -9.5 - Math.random() * 2; // salto
+                    let paraEsquerda = player.x < enemy.x;
+                    enemy.vx = paraEsquerda ? -3 : 3;
+                    if (Math.abs(enemy.x - player.x) < 800) {
+                        SoundEffects.play('slime_hop');
+                    }
+                }
+                
+                // Aplica movimento horizontal do pulo
+                enemy.x += enemy.vx;
+                if (this.game.player.verificarColisao(enemy.x, enemy.y, enemy.width, enemy.height)) {
+                    enemy.x -= enemy.vx;
+                    enemy.vx = -enemy.vx; // rebate ao bater na parede
+                }
+                
+                // Desaceleração horizontal rápida no chão para evitar deslizamento excessivo e aprisionamento em buracos
+                if (enemy.vy === 0) {
+                    enemy.vx *= 0.25;
+                }
+            } else if (enemy.tipo === 'zombie') {
+                // Zumbi caminha diretamente na direção do jogador de forma implacável
+                let paraEsquerda = player.x < enemy.x;
+                enemy.vx = paraEsquerda ? -1.4 : 1.4;
+                
+                enemy.x += enemy.vx;
+                // Se colidir horizontalmente (bater em parede/bloco), tenta pular para subir
+                if (this.game.player.verificarColisao(enemy.x, enemy.y, enemy.width, enemy.height)) {
+                    enemy.x -= enemy.vx;
+                    if (enemy.vy === 0) {
+                        enemy.vy = -8.5; // tenta pular obstáculo
+                    }
+                }
+
+                // Grunhido periódico do zumbi se estiver por perto
+                enemy.growlTimer = (enemy.growlTimer || 0) + 1;
+                if (enemy.growlTimer >= 240 + Math.random() * 240) { // a cada 4 a 8 segundos
+                    enemy.growlTimer = 0;
+                    if (Math.abs(enemy.x - player.x) < 800) {
+                        SoundEffects.play('zombie_growl');
+                    }
+                }
+            }
+
+            // Colisão com o Jogador (Dano no Jogador)
+            let overlapX = Math.abs(enemy.x + enemy.width / 2 - (player.x + player.width / 2)) < (enemy.width + player.width) / 2;
+            let overlapY = Math.abs(enemy.y + enemy.height / 2 - (player.y + player.height / 2)) < (enemy.height + player.height) / 2;
+            
+            if (overlapX && overlapY) {
+                if (player.invulTimer === 0) {
+                    // Causa dano
+                    player.vida = Math.max(0, player.vida - enemy.dano);
+                    player.invulTimer = 60; // 1 segundo de invulnerabilidade
+                    SoundEffects.play('hit_player');
+                    
+                    // Knockback no jogador
+                    player.vx = (player.x > enemy.x) ? 7 : -7;
+                    player.vy = -5;
+                    
+                    // Emite partículas de sangue/dano vermelhas do jogador
+                    for (let p = 0; p < 12; p++) {
+                        this.game.particulas.push({
+                            x: player.x + player.width / 2,
+                            y: player.y + player.height / 2,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6 - 2,
+                            cor: '#d50000',
+                            tamanho: 3 + Math.random() * 3,
+                            vida: 20 + Math.random() * 20
+                        });
+                    }
+
+                    // Verifica se o jogador morreu
+                    if (player.vida <= 0) {
+                        player.vida = 100;
+                        player.x = (Config.LARGURA_MUNDO / 2) * Config.TAM_BLOCO;
+                        player.y = 0;
+                        alert("Você foi derrotado! Renascendo no ponto de spawn inicial...");
+                    }
+                }
+            }
+        }
     }
 }
 window.WorldManager = WorldManager;

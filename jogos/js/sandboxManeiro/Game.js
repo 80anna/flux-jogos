@@ -91,11 +91,108 @@ class Game {
 
             const centroJogadorX = this.player.meuJogador.x + this.player.meuJogador.width / 2;
             const centroJogadorY = this.player.meuJogador.y + this.player.meuJogador.height / 2;
+
+            // Ataque em arco de meia lua na frente do jogador (botão esquerdo / clique normal), independente do lugar mirado
+            let inimigosAtingidos = [];
+            if (e.button !== 2) {
+                // Impede o ataque se o cooldown ainda estiver ativo
+                if (this.player.cooldownAtaque > 0) return;
+
+                // Sempre faz o movimento visual de swing ao atacar
+                this.player.triggerSwing();
+
+                // Aplica cooldown de 35 frames (~0.58 segundos)
+                this.player.cooldownAtaque = 15;
+
+                // Rotaciona instantaneamente o olhar do jogador para a direção da mira do mouse ao bater
+                const atacandoParaDireita = mouseX >= centroJogadorX;
+                this.player.meuJogador.facingRight = atacandoParaDireita;
+
+                let itemSelecionado = this.inventory.getItemSelecionado();
+                let idItem = itemSelecionado ? itemSelecionado.id : null;
+                
+                // Determina o dano e o raio do arco de ataque (tamanho da meia lua) dependendo da arma
+                let dano = 1;
+                let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
+                if (idItem === 'espada_cobre') {
+                    dano = 8;
+                    raioAtaque = 60; // Espada de Cobre (2.5 blocos de alcance!)
+                } else if (idItem === 'picareta_cobre') {
+                    dano = 3;
+                    raioAtaque = 48; // Picareta de Cobre (2.0 blocos)
+                }
+
+                // Procura todos os inimigos no raio e no hemisfério frontal (meia lua na frente do jogador)
+                for (let idx = this.world.inimigos.length - 1; idx >= 0; idx--) {
+                    let enemy = this.world.inimigos[idx];
+                    let centroInimigoX = enemy.x + enemy.width / 2;
+                    let centroInimigoY = enemy.y + enemy.height / 2;
+                    let distPlayerInimigo = Math.sqrt(Math.pow(centroJogadorX - centroInimigoX, 2) + Math.pow(centroJogadorY - centroInimigoY, 2));
+                    
+                    if (distPlayerInimigo <= raioAtaque) {
+                        // Verifica se o inimigo está posicionado à frente do jogador (hemisfério correto)
+                        const noSetorFrontal = atacandoParaDireita ? (centroInimigoX >= centroJogadorX) : (centroInimigoX < centroJogadorX);
+                        if (noSetorFrontal) {
+                            inimigosAtingidos.push({ enemy, idx, dano, centroInimigoX, centroInimigoY });
+                        }
+                    }
+                }
+            }
+
+            if (inimigosAtingidos.length > 0) {
+                SoundEffects.play('hit_enemy');
+                // Aplica dano, knockback e partículas em todos os inimigos atingidos na meia lua
+                inimigosAtingidos.forEach(({ enemy, idx, dano, centroInimigoX, centroInimigoY }) => {
+                    enemy.vida -= dano;
+                    
+                    // Aplica knockback arremessando na direção oposta ao jogador
+                    enemy.vx = (enemy.x > this.player.meuJogador.x) ? 6 : -6;
+                    enemy.vy = -3.5;
+                    
+                    // Partículas de dano do inimigo
+                    let corParticula = enemy.tipo === 'slime_azul' ? '#2196F3' : '#3E2723';
+                    for (let p = 0; p < 8; p++) {
+                        this.particulas.push({
+                            x: centroInimigoX,
+                            y: centroInimigoY,
+                            vx: (Math.random() - 0.5) * 5,
+                            vy: (Math.random() - 0.5) * 5 - 1.5,
+                            cor: corParticula,
+                            tamanho: 2.5 + Math.random() * 2.5,
+                            vida: 15 + Math.random() * 15
+                        });
+                    }
+                    
+                    // Verifica se o inimigo morreu
+                    if (enemy.vida <= 0) {
+                        let dropGridX = Math.floor(centroInimigoX / Config.TAM_BLOCO);
+                        let dropGridY = Math.floor(centroInimigoY / Config.TAM_BLOCO);
+                        this.world.criarDrop(dropGridX, dropGridY, enemy.dropItem);
+                        
+                        // Partículas explosivas da morte
+                        for (let p = 0; p < 15; p++) {
+                            this.particulas.push({
+                                x: centroInimigoX,
+                                y: centroInimigoY,
+                                vx: (Math.random() - 0.5) * 7,
+                                vy: (Math.random() - 0.5) * 7 - 2,
+                                cor: corParticula,
+                                tamanho: 3 + Math.random() * 3,
+                                vida: 25 + Math.random() * 20
+                            });
+                        }
+                        
+                        this.world.inimigos.splice(idx, 1);
+                    }
+                });
+                return; // Cancela a mineração de blocos ao lutar
+            }
+
             const centroAlvoX = gridX * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
             const centroAlvoY = gridY * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
             const distancia = Math.sqrt(Math.pow(centroAlvoX - centroJogadorX, 2) + Math.pow(centroAlvoY - centroJogadorY, 2));
 
-            if (distancia > Config.ALCANCE_MINERACAO) return; 
+            if (distancia > Config.ALCANCE_MINERACAO) return;
 
             if (gridX >= 0 && gridX < Config.LARGURA_MUNDO && gridY >= 0 && gridY < Config.ALTURA_MUNDO) {
                 let blocoAlvo = this.world.mundo[gridX][gridY];
@@ -118,6 +215,8 @@ class Game {
                 if (e.button === 2 && (ehPorta || ehPortaTopo)) {
                     let novoBloco = blocoAlvo === 'porta' ? 'porta_aberta' : 'porta';
                     this.world.mundo[portaX][portaY] = novoBloco;
+                    
+                    SoundEffects.play('door');
                     
                     const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: novoBloco };
                     if (this.network.souHost) {
@@ -143,6 +242,8 @@ class Game {
 
                     // Cria partículas visuais de quebra de bloco
                     this.criarParticulas(portaX, portaY, blocoAlvo);
+
+                    SoundEffects.play('break_block');
 
                     this.world.blockDamage = this.world.blockDamage || {};
 
@@ -195,6 +296,7 @@ class Game {
                     this.player.triggerSwing();
 
                     this.world.mundo[gridX][gridY] = idItem;
+                    SoundEffects.play('place_block');
                     
                     // Se o jogador colocou madeira, registra como madeira de construção colocada
                     if (idItem === 'madeira' || idItem === 'madeira_selva' || idItem === 'madeira_pinheiro') {
@@ -299,6 +401,8 @@ class Game {
         }
 
         this.player.atualizarFisica();
+        this.world.spawnInimigos();
+        this.world.atualizarInimigos();
 
         // Atualização física das partículas
         this.particulas.forEach(p => {
@@ -659,15 +763,132 @@ class Game {
             this.ctx.restore();
         });
 
+        // Desenha a Área de Alcance de Mineração
         this.ctx.beginPath();
         this.ctx.arc(this.player.meuJogador.x + this.player.meuJogador.width / 2, this.player.meuJogador.y + this.player.meuJogador.height / 2, Config.ALCANCE_MINERACAO, 0, Math.PI * 2);
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
         this.ctx.lineWidth = 1;
         this.ctx.setLineDash([4, 4]);
         this.ctx.stroke();
         this.ctx.setLineDash([]);
 
+        // Desenha a Área de Alcance de Ataque (Sweep - Meia Lua frontal dinâmica dependendo da arma)
+        let itemSelecionado = this.inventory.getItemSelecionado();
+        let idItem = itemSelecionado ? itemSelecionado.id : null;
+        let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
+        if (idItem === 'espada_cobre') raioAtaque = 60; // Espada (2.5 blocos de alcance!)
+        else if (idItem === 'picareta_cobre') raioAtaque = 48; // Picareta (2.0 blocos)
+
+        let facingRight = this.player.meuJogador.facingRight !== false;
+        let startAngle = facingRight ? -Math.PI / 2 : Math.PI / 2;
+        let endAngle = facingRight ? Math.PI / 2 : 3 * Math.PI / 2;
+
+        this.ctx.beginPath();
+        this.ctx.arc(
+            this.player.meuJogador.x + this.player.meuJogador.width / 2, 
+            this.player.meuJogador.y + this.player.meuJogador.height / 2, 
+            raioAtaque, 
+            startAngle, 
+            endAngle
+        );
+        this.ctx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash([3, 3]);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+
+        // Desenha a onda expansiva de ataque ao desferir swing com a arma (Meia lua ciana)
+        if (this.player.swingTimer > 0) {
+            let progresso = (15 - this.player.swingTimer) / 15;
+            let raioAtual = raioAtaque * Math.sin(progresso * Math.PI / 2); // Expande de 0 a raioAtaque
+            let opacidade = 1 - progresso;
+            
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(
+                this.player.meuJogador.x + this.player.meuJogador.width / 2, 
+                this.player.meuJogador.y + this.player.meuJogador.height / 2, 
+                raioAtual, 
+                startAngle, 
+                endAngle
+            );
+            this.ctx.strokeStyle = `rgba(0, 229, 255, ${opacidade})`; // Ciano elétrico
+            this.ctx.lineWidth = 4 * (1 - progresso); // Começa grosso e afina
+            this.ctx.shadowBlur = 12;
+            this.ctx.shadowColor = '#00e5ff';
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+
         this.player.desenharPlayers(this.ctx);
+
+        // Desenha inimigos ativos (Zumbis e Slimes) no cenário
+        this.world.inimigos.forEach(enemy => {
+            this.ctx.save();
+            
+            // Slime Azul
+            if (enemy.tipo === 'slime_azul') {
+                this.ctx.fillStyle = 'rgba(33, 150, 243, 0.85)';
+                this.ctx.beginPath();
+                if (this.ctx.roundRect) {
+                    this.ctx.roundRect(enemy.x, enemy.y, enemy.width, enemy.height, [8, 8, 2, 2]);
+                } else {
+                    this.ctx.rect(enemy.x, enemy.y, enemy.width, enemy.height);
+                }
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#0d47a1';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+                
+                // Olhinhos brancos e pupilas fofas do slime
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.fillRect(enemy.x + 5, enemy.y + 4, 3, 3);
+                this.ctx.fillRect(enemy.x + 13, enemy.y + 4, 3, 3);
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(enemy.x + 6, enemy.y + 5, 1, 1);
+                this.ctx.fillRect(enemy.x + 14, enemy.y + 5, 1, 1);
+            } 
+            // Zumbi
+            else if (enemy.tipo === 'zombie') {
+                // Pele verde zumbi
+                this.ctx.fillStyle = '#4CAF50';
+                this.ctx.fillRect(enemy.x + 2, enemy.y, 13, 10);
+                
+                // Olhos pretos
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(enemy.x + 4, enemy.y + 3, 2, 2);
+                this.ctx.fillRect(enemy.x + 11, enemy.y + 3, 2, 2);
+                
+                // Camisa azul
+                this.ctx.fillStyle = '#1565C0';
+                this.ctx.fillRect(enemy.x + 1, enemy.y + 10, 15, 12);
+                
+                // Braços esticados para frente (pose clássica de zumbi)
+                this.ctx.fillStyle = '#4CAF50';
+                this.ctx.fillRect(enemy.x - 3, enemy.y + 11, 4, 4);
+                this.ctx.fillRect(enemy.x + 16, enemy.y + 11, 4, 4);
+                
+                // Calça roxa
+                this.ctx.fillStyle = '#5E35B1';
+                this.ctx.fillRect(enemy.x + 2, enemy.y + 22, 13, 7);
+                
+                // Sapatos marrons
+                this.ctx.fillStyle = '#3E2723';
+                this.ctx.fillRect(enemy.x + 1, enemy.y + 29, 6, 2);
+                this.ctx.fillRect(enemy.x + 10, enemy.y + 29, 6, 2);
+            }
+
+            // Barra de vida acima do inimigo se ele estiver ferido
+            if (enemy.vida < enemy.maxVida) {
+                let pct = Math.max(0, enemy.vida / enemy.maxVida);
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                this.ctx.fillRect(enemy.x - 3, enemy.y - 10, enemy.width + 6, 4);
+                this.ctx.fillStyle = '#f44336'; // Barra vermelha de dano
+                this.ctx.fillRect(enemy.x - 3, enemy.y - 10, (enemy.width + 6) * pct, 4);
+            }
+            
+            this.ctx.restore();
+        });
 
         // 4. MÁSCARA DE ILUMINAÇÃO SUAVE (SMOOTH LIGHTING OVERLAY)
         let cols = fimX - inicioX;
@@ -755,49 +976,105 @@ class Game {
             this.ctx.drawImage(this.maskCanvas, 0, 0);
         }
 
-        const barX = 30;
-        const barY = 30;
         const barW = 220;
         const barH = 18;
-        const val = this.player.meuJogador.sprintBar; // 0 a 100
-
+        const barX = this.canvas.width - barW - 30; // Alinhado ao canto superior direito
+        
         this.ctx.save();
+        
+        // ==================== 1. HUD DE VIDA ====================
+        const vidaY = 30;
+        const vidaVal = Math.max(0, this.player.meuJogador.vida); // 0 a 100
         
         // Sombra de texto para legibilidade premium
         this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         this.ctx.shadowBlur = 4;
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         this.ctx.font = 'bold 14px "Outfit", sans-serif';
-        this.ctx.fillText('Stamina (SHIFT)', barX, barY - 8);
+        this.ctx.fillText(`Vida: ${Math.round(vidaVal)} / 100`, barX, vidaY - 8);
         this.ctx.shadowBlur = 0; // Desativa sombra
 
-        // Fundo da barra (Glassmorphic dark capsule)
+        // Fundo da barra de vida (Glassmorphic dark capsule)
         this.ctx.fillStyle = 'rgba(15, 15, 25, 0.65)';
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
         if (this.ctx.roundRect) {
-            this.ctx.roundRect(barX, barY, barW, barH, 8);
+            this.ctx.roundRect(barX, vidaY, barW, barH, 8);
         } else {
-            this.ctx.rect(barX, barY, barW, barH);
+            this.ctx.rect(barX, vidaY, barW, barH);
         }
         this.ctx.fill();
         this.ctx.stroke();
 
-        // Barra preenchida
-        if (val > 0) {
-            let fillW = (val / 100) * (barW - 4);
+        // Barra de Vida preenchida
+        if (vidaVal > 0) {
+            let fillW = (vidaVal / 100) * (barW - 4);
             let fillX = barX + 2;
-            let fillY = barY + 2;
+            let fillY = vidaY + 2;
             let fillH = barH - 4;
 
             let fillGrad = this.ctx.createLinearGradient(fillX, fillY, fillX + fillW, fillY);
-            if (val < 25) {
-                // Alerta de pouca energia (Vermelho/Rosa elétrico)
+            fillGrad.addColorStop(0, '#ff2a5f');
+            fillGrad.addColorStop(1, '#ff7e40');
+
+            this.ctx.fillStyle = fillGrad;
+            this.ctx.beginPath();
+            if (this.ctx.roundRect) {
+                this.ctx.roundRect(fillX, fillY, fillW, fillH, 5);
+            } else {
+                this.ctx.rect(fillX, fillY, fillW, fillH);
+            }
+            this.ctx.fill();
+
+            // Brilho/Gloss sutil na parte superior
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            this.ctx.beginPath();
+            if (this.ctx.roundRect) {
+                this.ctx.roundRect(fillX, fillY, fillW, fillH / 2, 3);
+            } else {
+                this.ctx.rect(fillX, fillY, fillW, fillH / 2);
+            }
+            this.ctx.fill();
+        }
+
+        // ==================== 2. HUD DE STAMINA ====================
+        const staminaY = 75;
+        const staminaVal = this.player.meuJogador.sprintBar; // 0 a 100
+        
+        // Sombra de texto
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.font = 'bold 14px "Outfit", sans-serif';
+        this.ctx.fillText('Stamina (SHIFT)', barX, staminaY - 8);
+        this.ctx.shadowBlur = 0; // Desativa sombra
+
+        // Fundo da barra de stamina (Capsule escura)
+        this.ctx.fillStyle = 'rgba(15, 15, 25, 0.65)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        if (this.ctx.roundRect) {
+            this.ctx.roundRect(barX, staminaY, barW, barH, 8);
+        } else {
+            this.ctx.rect(barX, staminaY, barW, barH);
+        }
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // Barra de Stamina preenchida
+        if (staminaVal > 0) {
+            let fillW = (staminaVal / 100) * (barW - 4);
+            let fillX = barX + 2;
+            let fillY = staminaY + 2;
+            let fillH = barH - 4;
+
+            let fillGrad = this.ctx.createLinearGradient(fillX, fillY, fillX + fillW, fillY);
+            if (staminaVal < 25) {
                 fillGrad.addColorStop(0, '#ff4b2b');
                 fillGrad.addColorStop(1, '#ff416c');
             } else {
-                // Fôlego normal (Gradiente ciano/azul elétrico)
                 fillGrad.addColorStop(0, '#00f2fe');
                 fillGrad.addColorStop(1, '#4facfe');
             }
@@ -811,7 +1088,7 @@ class Game {
             }
             this.ctx.fill();
 
-            // Brilho/Gloss sutil na parte superior para dar profundidade 3D
+            // Brilho/Gloss sutil na parte superior
             this.ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
             this.ctx.beginPath();
             if (this.ctx.roundRect) {

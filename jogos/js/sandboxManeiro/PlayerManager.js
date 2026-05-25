@@ -14,11 +14,15 @@ class PlayerManager {
             swingTimer: 0,
             sprintBar: 100,
             correndo: false,
-            sprintExausto: false
+            sprintExausto: false,
+            vida: 100,
+            invulTimer: 0
         };
         this.jogadores = {};
         this.teclas = { a: false, d: false, w: false, s: false, shift: false };
         this.swingTimer = 0; // Temporizador local da animação do braço
+        this.regenTimer = 0; // Temporizador de regeneração de vida
+        this.cooldownAtaque = 0; // Temporizador de cooldown de ataque
     }
 
     triggerSwing() {
@@ -70,6 +74,18 @@ class PlayerManager {
     }
 
     atualizarFisica() {
+        // Regeneração de Vida: 1 de vida a cada 5 segundos (300 frames)
+        this.regenTimer = (this.regenTimer || 0) + 1;
+        if (this.regenTimer >= 300) {
+            this.regenTimer = 0;
+            this.meuJogador.vida = Math.min(100, this.meuJogador.vida + 1);
+        }
+
+        // Decrementa timer de invulnerabilidade
+        if (this.meuJogador.invulTimer > 0) {
+            this.meuJogador.invulTimer--;
+        }
+
         // Gerenciamento de Sprint (Fôlego) com Cooldown
         let movendoHorizontal = this.teclas.a || this.teclas.d;
         
@@ -110,17 +126,40 @@ class PlayerManager {
         let noChao = false;
         let checarPlataforma = this.meuJogador.vy >= 0;
         if (this.verificarColisao(this.meuJogador.x, this.meuJogador.y, this.meuJogador.width, this.meuJogador.height, checarPlataforma)) {
-            if (this.meuJogador.vy > 0) noChao = true;
+            if (this.meuJogador.vy > 0) {
+                noChao = true;
+                if (this.meuJogador.vy > 5) {
+                    SoundEffects.play('land');
+                }
+            }
             this.meuJogador.y -= this.meuJogador.vy;
             this.meuJogador.vy = 0;
         }
 
         // Pulo aumentado para força -15
-        if (this.teclas.w && noChao) this.meuJogador.vy = -15;
+        if (this.teclas.w && noChao) {
+            this.meuJogador.vy = -15;
+            SoundEffects.play('jump');
+        }
 
-        // Decrementa animação de swing local
+        // Efeito sonoro compassado de passos ao caminhar/correr no chão
+        if (noChao && Math.abs(this.meuJogador.vx) > 0.5) {
+            this.walkSoundTimer = (this.walkSoundTimer || 0) + 1;
+            let stepDelay = this.meuJogador.correndo ? 16 : 24;
+            if (this.walkSoundTimer >= stepDelay) {
+                this.walkSoundTimer = 0;
+                SoundEffects.play('walk');
+            }
+        } else {
+            this.walkSoundTimer = 999; // Próximo início de passo tocará imediatamente
+        }
+
+        // Decrementa animação de swing local e cooldown de ataque
         if (this.swingTimer > 0) {
             this.swingTimer--;
+        }
+        if (this.cooldownAtaque > 0) {
+            this.cooldownAtaque--;
         }
 
         // Atualiza estado do heldItem e swingTimer no pacote sincronizado
@@ -143,6 +182,7 @@ class PlayerManager {
             if (Math.abs(this.meuJogador.x - d.x) < Config.TAM_BLOCO && Math.abs(this.meuJogador.y - d.y) < Config.TAM_BLOCO) {
                 if (this.game.inventory.adicionarAoInventario(d.tipo, 1)) {
                     this.game.world.removerDrop(idDrop);
+                    SoundEffects.play('collect');
                 }
             }
         }
@@ -168,6 +208,11 @@ class PlayerManager {
 
     desenharHumanoid(ctx, p, activeItemId, swingTimer) {
         ctx.save();
+        
+        // Efeito de piscar se estiver invulnerável (recebendo dano)
+        if (p.invulTimer > 0) {
+            ctx.globalAlpha = 0.3 + 0.5 * (Math.floor(Date.now() / 50) % 2);
+        }
         
         const x = Math.floor(p.x);
         const y = Math.floor(p.y);
@@ -267,7 +312,7 @@ class PlayerManager {
             ctx.save();
             ctx.translate(0, 6);
             
-            if (activeItemId === 'picareta_cobre') {
+            if (activeItemId === 'picareta_cobre' || activeItemId === 'espada_cobre') {
                 ctx.rotate(facingRight ? Math.PI / 4 : -Math.PI / 4);
                 const tex = this.game.textures.get(activeItemId);
                 if (tex) {

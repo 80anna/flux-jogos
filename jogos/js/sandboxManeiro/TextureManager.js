@@ -509,6 +509,93 @@ class TextureManager {
             cx.fillRect(16, 7, 2, 2);
             cx.fillRect(16, 9, 1, 1);
         });
+
+        // 34. ESPADA DE COBRE
+        this.criarTextura('espada_cobre', (cx) => {
+            // Cabo de madeira/couro
+            cx.fillStyle = '#5D4037'; cx.fillRect(3, 17, 3, 3);
+            cx.fillStyle = '#8D6E63'; cx.fillRect(4, 16, 2, 2);
+            // Guarda de mão (guarda de cobre)
+            cx.fillStyle = '#D84315';
+            cx.fillRect(5, 14, 5, 2);
+            cx.fillRect(4, 15, 2, 3);
+            // Lâmina de cobre diagonal
+            cx.fillStyle = '#FF7043'; // Cobre principal
+            for (let i = 0; i < 11; i++) {
+                cx.fillRect(6 + i, 13 - i, 2, 2);
+            }
+            cx.fillStyle = '#FFAB91'; // Brilho metálico superior
+            for (let i = 0; i < 11; i++) {
+                cx.fillRect(7 + i, 13 - i, 1, 1);
+            }
+        });
+
+        // 35. GEL (DROP DE SLIME)
+        this.criarTextura('gel', (cx) => {
+            // Sombra e base azul translúcida
+            cx.fillStyle = 'rgba(33, 150, 243, 0.85)';
+            cx.beginPath();
+            cx.arc(10, 11, 7, 0, Math.PI * 2);
+            cx.fill();
+            // Camada interna brilhante
+            cx.fillStyle = 'rgba(129, 212, 250, 0.9)';
+            cx.beginPath();
+            cx.arc(8, 9, 4, 0, Math.PI * 2);
+            cx.fill();
+            // Pequeno reflexo de luz branca
+            cx.fillStyle = '#FFFFFF';
+            cx.fillRect(6, 6, 2, 2);
+        });
+
+        // 36. CARNE PODRE (DROP DE ZUMBI)
+        this.criarTextura('carne_podre', (cx) => {
+            // Formato irregular de bife/carne podre
+            cx.fillStyle = '#4e342e'; // Marrom escuro de base
+            cx.fillRect(4, 6, 12, 9);
+            cx.fillRect(6, 4, 8, 12);
+            // Tom esverdeado apodrecido por cima
+            cx.fillStyle = '#558B2F'; // Verde zumbi
+            cx.fillRect(6, 6, 8, 7);
+            cx.fillRect(8, 5, 5, 9);
+            // Detalhes de ossos ou nervos cinzentos
+            cx.fillStyle = '#ECEFF1';
+            cx.fillRect(3, 8, 2, 2);
+            cx.fillRect(15, 10, 2, 2);
+        });
+        // 37. LAMA (Mud)
+        this.criarTextura('lama', (cx) => {
+            cx.fillStyle = '#4e342e'; // Marrom base escuro
+            cx.fillRect(0, 0, 20, 20);
+            // Manchas mais escuras úmidas
+            cx.fillStyle = '#3e2723';
+            cx.fillRect(2, 2, 4, 3);
+            cx.fillRect(10, 4, 6, 4);
+            cx.fillRect(4, 12, 5, 5);
+            cx.fillRect(12, 11, 4, 3);
+            // Detalhes brilhantes de água
+            cx.fillStyle = '#6d4c41';
+            cx.fillRect(8, 2, 1, 1);
+            cx.fillRect(4, 8, 2, 1);
+            cx.fillRect(14, 8, 1, 1);
+        });
+
+        // 38. GRANITO (Granite)
+        this.criarTextura('granito', (cx) => {
+            cx.fillStyle = '#b0bec5'; // Base cinza azulada claro
+            cx.fillRect(0, 0, 20, 20);
+            // Manchas rosa/vermelho granito clássicas
+            cx.fillStyle = '#ef9a9a';
+            cx.fillRect(2, 1, 3, 3);
+            cx.fillRect(11, 3, 4, 4);
+            cx.fillRect(4, 10, 5, 3);
+            cx.fillRect(12, 12, 4, 5);
+            // Partículas minerais pretas/brilhantes
+            cx.fillStyle = '#37474f';
+            cx.fillRect(6, 4, 2, 2);
+            cx.fillRect(14, 2, 2, 2);
+            cx.fillRect(2, 14, 2, 2);
+            cx.fillRect(10, 10, 2, 2);
+        });
     }
 
     get(id) {
