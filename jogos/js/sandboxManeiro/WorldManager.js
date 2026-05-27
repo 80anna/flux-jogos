@@ -61,7 +61,7 @@ class WorldManager {
         }
 
         // Cavernas Melhores (Gerador de túneis de largura variável e câmaras amplas)
-        for (let i = 0; i < 200; i++) { // Aumentado para 200 cavernas
+        for (let i = 0; i < 350; i++) { // Aumentado para 350 cavernas
             let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
             let cy = 40 + Math.floor(Math.random() * (Config.ALTURA_MUNDO - 60)); // espalha mais verticalmente!
             
@@ -191,7 +191,7 @@ class WorldManager {
 
             if (biomaAtual === 'floresta') {
                 if (Math.random() < 0.1) {
-                    let h = 3 + Math.floor(Math.random() * 3);
+                    let h = 5 + Math.floor(Math.random() * 5); // Árvores mais altas
                     for (let t = 1; t <= h; t++) this.mundo[x][y - t] = 'madeira';
                     let topo = y - h;
                     this.mundo[x][topo] = 'folha'; this.mundo[x-1][topo] = 'folha'; this.mundo[x+1][topo] = 'folha';
@@ -214,7 +214,7 @@ class WorldManager {
                 }
             } else if (biomaAtual === 'selva') {
                 if (Math.random() < 0.15) {
-                    let h = 6 + Math.floor(Math.random() * 5);
+                    let h = 9 + Math.floor(Math.random() * 6); // Árvores da selva bem altas
                     for (let t = 1; t <= h; t++) this.mundo[x][y - t] = 'madeira_selva';
                     let topo = y - h;
                     for(let ix=-2; ix<=2; ix++) {
@@ -235,7 +235,7 @@ class WorldManager {
                 }
             } else if (biomaAtual === 'tundra') {
                 if (Math.random() < 0.08) {
-                    let h = 4 + Math.floor(Math.random() * 3);
+                    let h = 6 + Math.floor(Math.random() * 4); // Pinheiros mais altos
                     for (let t = 1; t <= h; t++) this.mundo[x][y - t] = 'madeira_pinheiro';
                     let topo = y - h;
                     this.mundo[x][topo] = 'folha_pinheiro';

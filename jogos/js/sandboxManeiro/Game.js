@@ -2,7 +2,7 @@ class Game {
     constructor() {
         this.canvas = document.getElementById('jogo');
         this.ctx = this.canvas.getContext('2d');
-        
+
         this.camera = { x: 0, y: 0 };
         this.musicaFundo = null;
 
@@ -65,7 +65,7 @@ class Game {
             if (['w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = true;
             if (['s', 'ArrowDown'].includes(e.key)) this.player.teclas.s = true;
             if (e.key === 'Shift') this.player.teclas.shift = true;
-            
+
             if (e.key >= '0' && e.key <= '9') {
                 let num = parseInt(e.key);
                 this.inventory.slotSelecionado = (num === 0) ? 9 : num - 1;
@@ -81,255 +81,276 @@ class Game {
             if (e.key === 'Shift') this.player.teclas.shift = false;
         });
 
+        this.canvas.addEventListener('mousemove', (e) => {
+            this.lastMouseX = e.clientX;
+            this.lastMouseY = e.clientY;
+        });
+
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (e.button === this.mouseButton) this.isMouseDown = false;
+        });
+
+        this.canvas.addEventListener('mouseleave', (e) => {
+            this.isMouseDown = false;
+        });
+
         this.canvas.addEventListener('mousedown', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left) * (this.canvas.width / rect.width) + this.camera.x;
-            const mouseY = (e.clientY - rect.top) * (this.canvas.height / rect.height) + this.camera.y;
-
-            const gridX = Math.floor(mouseX / Config.TAM_BLOCO);
-            const gridY = Math.floor(mouseY / Config.TAM_BLOCO);
-
-            const centroJogadorX = this.player.meuJogador.x + this.player.meuJogador.width / 2;
-            const centroJogadorY = this.player.meuJogador.y + this.player.meuJogador.height / 2;
-
-            // Ataque em arco de meia lua na frente do jogador (botão esquerdo / clique normal), independente do lugar mirado
-            let inimigosAtingidos = [];
-            if (e.button !== 2) {
-                let itemSelecionado = this.inventory.getItemSelecionado();
-                let idItem = itemSelecionado ? itemSelecionado.id : null;
-                
-                // Lógica de consumo de cura (Bandaid)
-                if (idItem && Config.ATRIBUTOS_ITENS[idItem] && Config.ATRIBUTOS_ITENS[idItem].tipo === 'cura') {
-                    if (this.player.potionCooldownEnd && this.player.potionCooldownEnd > Date.now()) {
-                        return; // Cooldown ativo, não pode usar
-                    }
-                    this.player.meuJogador.vida = Math.min(100, this.player.meuJogador.vida + Config.ATRIBUTOS_ITENS[idItem].cura);
-                    this.player.potionCooldownEnd = Date.now() + 30000; // 30 segundos de cooldown
-                    this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
-                    return; // Consumido com sucesso, não ataca nem tenta colocar bloco
-                }
-
-                // Impede o ataque se o cooldown ainda estiver ativo
-                if (this.player.cooldownAtaque > 0) return;
-
-                // Sempre faz o movimento visual de swing ao atacar
-                this.player.triggerSwing();
-
-                // Aplica cooldown de 35 frames (~0.58 segundos)
-                this.player.cooldownAtaque = 15;
-
-                // Rotaciona instantaneamente o olhar do jogador para a direção da mira do mouse ao bater
-                const atacandoParaDireita = mouseX >= centroJogadorX;
-                this.player.meuJogador.facingRight = atacandoParaDireita;
-                
-                // Determina o dano e o raio do arco de ataque dependendo da arma
-                let dano = 1;
-                let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
-                if (idItem === 'espada_cobre') {
-                    dano = 8;
-                    raioAtaque = 60; // Espada de Cobre (2.5 blocos de alcance!)
-                } else if (idItem === 'picareta_cobre') {
-                    dano = 3;
-                    raioAtaque = 48; // Picareta de Cobre (2.0 blocos)
-                } else if (idItem === 'espada_ferro') {
-                    dano = 13; // +5 comparado a cobre (a arma causará dps muito forte somado com a base)
-                    raioAtaque = 65; // Ligeiramente maior alcance
-                } else if (idItem === 'picareta_ferro') {
-                    dano = 5;
-                    raioAtaque = 52;
-                }
-
-                // Procura todos os inimigos no raio (Ataque Circular 360º em volta do jogador)
-                for (let idx = this.world.inimigos.length - 1; idx >= 0; idx--) {
-                    let enemy = this.world.inimigos[idx];
-                    let centroInimigoX = enemy.x + enemy.width / 2;
-                    let centroInimigoY = enemy.y + enemy.height / 2;
-                    let distPlayerInimigo = Math.sqrt(Math.pow(centroJogadorX - centroInimigoX, 2) + Math.pow(centroJogadorY - centroInimigoY, 2));
-                    
-                    if (distPlayerInimigo <= raioAtaque) {
-                        // Ataque atinge todos ao redor, independente da direção que está olhando
-                        inimigosAtingidos.push({ enemy, idx, dano, centroInimigoX, centroInimigoY });
-                    }
-                    }
-                }
-            }
-
-            if (inimigosAtingidos.length > 0) {
-                SoundEffects.play('hit_enemy');
-                // Aplica dano, knockback e partículas em todos os inimigos atingidos na meia lua
-                inimigosAtingidos.forEach(({ enemy, idx, dano, centroInimigoX, centroInimigoY }) => {
-                    enemy.vida -= dano;
-                    
-                    // Aplica knockback arremessando na direção oposta ao jogador
-                    enemy.vx = (enemy.x > this.player.meuJogador.x) ? 6 : -6;
-                    enemy.vy = -3.5;
-                    
-                    // Partículas de dano do inimigo
-                    let corParticula = enemy.tipo === 'slime_azul' ? '#2196F3' : '#3E2723';
-                    for (let p = 0; p < 8; p++) {
-                        this.particulas.push({
-                            x: centroInimigoX,
-                            y: centroInimigoY,
-                            vx: (Math.random() - 0.5) * 5,
-                            vy: (Math.random() - 0.5) * 5 - 1.5,
-                            cor: corParticula,
-                            tamanho: 2.5 + Math.random() * 2.5,
-                            vida: 15 + Math.random() * 15
-                        });
-                    }
-                    
-                    // Verifica se o inimigo morreu
-                    if (enemy.vida <= 0) {
-                        let dropGridX = Math.floor(centroInimigoX / Config.TAM_BLOCO);
-                        let dropGridY = Math.floor(centroInimigoY / Config.TAM_BLOCO);
-                        this.world.criarDrop(dropGridX, dropGridY, enemy.dropItem);
-                        
-                        // Partículas explosivas da morte
-                        for (let p = 0; p < 15; p++) {
-                            this.particulas.push({
-                                x: centroInimigoX,
-                                y: centroInimigoY,
-                                vx: (Math.random() - 0.5) * 7,
-                                vy: (Math.random() - 0.5) * 7 - 2,
-                                cor: corParticula,
-                                tamanho: 3 + Math.random() * 3,
-                                vida: 25 + Math.random() * 20
-                            });
-                        }
-                        
-                        this.world.inimigos.splice(idx, 1);
-                    }
-                });
-                return; // Cancela a mineração de blocos ao lutar
-            }
-
-            const centroAlvoX = gridX * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
-            const centroAlvoY = gridY * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
-            const distancia = Math.sqrt(Math.pow(centroAlvoX - centroJogadorX, 2) + Math.pow(centroAlvoY - centroJogadorY, 2));
-
-            if (distancia > Config.ALCANCE_MINERACAO) return;
-
-            if (gridX >= 0 && gridX < Config.LARGURA_MUNDO && gridY >= 0 && gridY < Config.ALTURA_MUNDO) {
-                let blocoAlvo = this.world.mundo[gridX][gridY];
-
-                // Identifica se clicou em uma porta ou no topo de uma porta (2 blocos de altura)
-                let ehPorta = blocoAlvo === 'porta' || blocoAlvo === 'porta_aberta';
-                let ehPortaTopo = false;
-                let portaX = gridX, portaY = gridY;
-                
-                if (!ehPorta && gridY + 1 < Config.ALTURA_MUNDO) {
-                    let blocoAbaixo = this.world.mundo[gridX][gridY + 1];
-                    if (blocoAbaixo === 'porta' || blocoAbaixo === 'porta_aberta') {
-                        ehPortaTopo = true;
-                        blocoAlvo = blocoAbaixo;
-                        portaY = gridY + 1;
-                    }
-                }
-
-                // Interação com porta (clique com botão direito para abrir/fechar)
-                if (e.button === 2 && (ehPorta || ehPortaTopo)) {
-                    let novoBloco = blocoAlvo === 'porta' ? 'porta_aberta' : 'porta';
-                    this.world.mundo[portaX][portaY] = novoBloco;
-                    
-                    SoundEffects.play('door');
-                    
-                    const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: novoBloco };
-                    if (this.network.souHost) {
-                        this.network.transmitir(pacote);
-                    } else if (this.network.conexaoCliente) {
-                        this.network.conexaoCliente.send(pacote);
-                    }
-                    return;
-                }
-                
-                let quebrando = e.button != 2;
-                
-                let itemSelecionado = this.inventory.getItemSelecionado();
-                let idItem = itemSelecionado ? itemSelecionado.id : null;
-
-                let itemAtributos = idItem ? Config.ATRIBUTOS_ITENS[idItem] : null;
-                let ehPicareta = itemAtributos && itemAtributos.tipo === 'picareta';
-                let chave = `${portaX},${portaY}`;
-
-                if (quebrando && blocoAlvo !== 0 && ehPicareta) {
-                    // Ativa animação local de swing
-                    this.player.triggerSwing();
-
-                    // Cria partículas visuais de quebra de bloco
-                    this.criarParticulas(portaX, portaY, blocoAlvo);
-
-                    SoundEffects.play('break_block');
-
-                    this.world.blockDamage = this.world.blockDamage || {};
-
-                    let ehMadeiraColocada = (blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') && this.world.madeiraColocada.has(chave);
-                    let resistencia = Config.REGISTRO_BLOCOS[blocoAlvo]?.resistencia || 1;
-                    if (ehMadeiraColocada) resistencia = 1; // Madeira de construção quebra em 1 hit!
-                    
-                    let forca = itemAtributos.forca || 1;
-
-                    this.world.blockDamage[chave] = (this.world.blockDamage[chave] || 0) + forca;
-
-                    if (this.world.blockDamage[chave] >= resistencia) {
-                        delete this.world.blockDamage[chave];
-
-                        if ((blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') && !ehMadeiraColocada) {
-                            this.world.quebrarArvoreInteira(portaX, portaY, blocoAlvo);
-                        } else {
-                            this.world.criarDrop(portaX, portaY, blocoAlvo);
-                            this.world.mundo[portaX][portaY] = 0;
-                            
-                            // Remove do conjunto de madeira colocada
-                            this.world.madeiraColocada.delete(chave);
-
-                            const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: 0 };
-                            if (this.network.souHost) {
-                                this.network.transmitir(pacote);
-                            } else if (this.network.conexaoCliente) {
-                                this.network.conexaoCliente.send(pacote);
-                            }
-
-                            // Quebra plantas e decorações flutuantes diretamente acima
-                            this.world.verificarQuebraPlantaAcima(portaX, portaY);
-                        }
-                    }
-                } else if (!quebrando && blocoAlvo === 0 && idItem && Config.REGISTRO_BLOCOS[idItem]) {
-                    // Previne a colocação de blocos por cima do corpo de uma porta existente
-                    let blocoAbaixo = (gridY + 1 < Config.ALTURA_MUNDO) ? this.world.mundo[gridX][gridY + 1] : 0;
-                    if (blocoAbaixo === 'porta' || blocoAbaixo === 'porta_aberta') {
-                        return;
-                    }
-
-                    // Se for colocar porta, exige pelo menos 2 blocos verticais livres (gridY e gridY - 1)
-                    if (idItem === 'porta') {
-                        if (gridY - 1 < 0 || this.world.mundo[gridX][gridY - 1] !== 0) {
-                            return;
-                        }
-                    }
-
-                    // Ativa animação local de swing para colocação
-                    this.player.triggerSwing();
-
-                    this.world.mundo[gridX][gridY] = idItem;
-                    SoundEffects.play('place_block');
-                    
-                    // Se o jogador colocou madeira, registra como madeira de construção colocada
-                    if (idItem === 'madeira' || idItem === 'madeira_selva' || idItem === 'madeira_pinheiro') {
-                        this.world.madeiraColocada.add(chave);
-                    }
-
-                    this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
-                    const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: idItem };
-                    if (this.network.souHost) {
-                        this.network.transmitir(pacote);
-                    } else if (this.network.conexaoCliente) {
-                        this.network.conexaoCliente.send(pacote);
-                    }
-                }
-            }
+            this.isMouseDown = true;
+            this.mouseButton = e.button;
+            this.lastMouseX = e.clientX;
+            this.lastMouseY = e.clientY;
+            this.processarAcaoMouse(e);
         });
 
         this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    processarAcaoMouse(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) * (this.canvas.width / rect.width) + this.camera.x;
+        const mouseY = (e.clientY - rect.top) * (this.canvas.height / rect.height) + this.camera.y;
+
+        const gridX = Math.floor(mouseX / Config.TAM_BLOCO);
+        const gridY = Math.floor(mouseY / Config.TAM_BLOCO);
+
+        const centroJogadorX = this.player.meuJogador.x + this.player.meuJogador.width / 2;
+        const centroJogadorY = this.player.meuJogador.y + this.player.meuJogador.height / 2;
+
+        // Ataque em arco de meia lua na frente do jogador (botão esquerdo / clique normal), independente do lugar mirado
+        let inimigosAtingidos = [];
+        if (e.button !== 2) {
+            let itemSelecionado = this.inventory.getItemSelecionado();
+            let idItem = itemSelecionado ? itemSelecionado.id : null;
+
+            // Lógica de consumo de cura (Bandaid)
+            if (idItem && Config.ATRIBUTOS_ITENS[idItem] && Config.ATRIBUTOS_ITENS[idItem].tipo === 'cura') {
+                if (this.player.potionCooldownEnd && this.player.potionCooldownEnd > Date.now()) {
+                    return; // Cooldown ativo, não pode usar
+                }
+                this.player.meuJogador.vida = Math.min(100, this.player.meuJogador.vida + Config.ATRIBUTOS_ITENS[idItem].cura);
+                this.player.potionCooldownEnd = Date.now() + 30000; // 30 segundos de cooldown
+                this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
+                return; // Consumido com sucesso, não ataca nem tenta colocar bloco
+            }
+
+            // Impede o ataque se o cooldown ainda estiver ativo
+            if (this.player.cooldownAtaque > 0) return;
+
+            // Sempre faz o movimento visual de swing ao atacar
+            this.player.triggerSwing();
+
+            // Aplica cooldown de 35 frames (~0.58 segundos)
+            this.player.cooldownAtaque = 15;
+
+            // Rotaciona instantaneamente o olhar do jogador para a direção da mira do mouse ao bater
+            const atacandoParaDireita = mouseX >= centroJogadorX;
+            this.player.meuJogador.facingRight = atacandoParaDireita;
+
+            // Determina o dano e o raio do arco de ataque dependendo da arma
+            let dano = 1;
+            let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
+            if (idItem === 'espada_cobre') {
+                dano = 8;
+                raioAtaque = 60; // Espada de Cobre (2.5 blocos de alcance!)
+            } else if (idItem === 'picareta_cobre') {
+                dano = 3;
+                raioAtaque = 48; // Picareta de Cobre (2.0 blocos)
+            } else if (idItem === 'espada_ferro') {
+                dano = 13; // +5 comparado a cobre (a arma causará dps muito forte somado com a base)
+                raioAtaque = 65; // Ligeiramente maior alcance
+            } else if (idItem === 'picareta_ferro') {
+                dano = 5;
+                raioAtaque = 52;
+            }
+
+            // Procura todos os inimigos no raio (Ataque Circular 360º em volta do jogador)
+            for (let idx = this.world.inimigos.length - 1; idx >= 0; idx--) {
+                let enemy = this.world.inimigos[idx];
+                let centroInimigoX = enemy.x + enemy.width / 2;
+                let centroInimigoY = enemy.y + enemy.height / 2;
+                let distPlayerInimigo = Math.sqrt(Math.pow(centroJogadorX - centroInimigoX, 2) + Math.pow(centroJogadorY - centroInimigoY, 2));
+
+                if (distPlayerInimigo <= raioAtaque) {
+                    // Ataque atinge todos ao redor, independente da direção que está olhando
+                    inimigosAtingidos.push({ enemy, idx, dano, centroInimigoX, centroInimigoY });
+                }
+            }
+        }
+
+        if (inimigosAtingidos.length > 0) {
+            SoundEffects.play('hit_enemy');
+            // Aplica dano, knockback e partículas em todos os inimigos atingidos na meia lua
+            inimigosAtingidos.forEach(({ enemy, idx, dano, centroInimigoX, centroInimigoY }) => {
+                enemy.vida -= dano;
+
+                // Aplica knockback arremessando na direção oposta ao jogador
+                enemy.vx = (enemy.x > this.player.meuJogador.x) ? 6 : -6;
+                enemy.vy = -3.5;
+
+                // Partículas de dano do inimigo
+                let corParticula = enemy.tipo === 'slime_azul' ? '#2196F3' : '#3E2723';
+                for (let p = 0; p < 8; p++) {
+                    this.particulas.push({
+                        x: centroInimigoX,
+                        y: centroInimigoY,
+                        vx: (Math.random() - 0.5) * 5,
+                        vy: (Math.random() - 0.5) * 5 - 1.5,
+                        cor: corParticula,
+                        tamanho: 2.5 + Math.random() * 2.5,
+                        vida: 15 + Math.random() * 15
+                    });
+                }
+
+                // Verifica se o inimigo morreu
+                if (enemy.vida <= 0) {
+                    let dropGridX = Math.floor(centroInimigoX / Config.TAM_BLOCO);
+                    let dropGridY = Math.floor(centroInimigoY / Config.TAM_BLOCO);
+                    this.world.criarDrop(dropGridX, dropGridY, enemy.dropItem);
+
+                    // Partículas explosivas da morte
+                    for (let p = 0; p < 15; p++) {
+                        this.particulas.push({
+                            x: centroInimigoX,
+                            y: centroInimigoY,
+                            vx: (Math.random() - 0.5) * 7,
+                            vy: (Math.random() - 0.5) * 7 - 2,
+                            cor: corParticula,
+                            tamanho: 3 + Math.random() * 3,
+                            vida: 25 + Math.random() * 20
+                        });
+                    }
+
+                    this.world.inimigos.splice(idx, 1);
+                }
+            });
+            return; // Cancela a mineração de blocos ao lutar
+        }
+
+        const centroAlvoX = gridX * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
+        const centroAlvoY = gridY * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
+        const distancia = Math.sqrt(Math.pow(centroAlvoX - centroJogadorX, 2) + Math.pow(centroAlvoY - centroJogadorY, 2));
+
+        if (distancia > Config.ALCANCE_MINERACAO) return;
+
+        if (gridX >= 0 && gridX < Config.LARGURA_MUNDO && gridY >= 0 && gridY < Config.ALTURA_MUNDO) {
+            let blocoAlvo = this.world.mundo[gridX][gridY];
+
+            // Identifica se clicou em uma porta ou no topo de uma porta (2 blocos de altura)
+            let ehPorta = blocoAlvo === 'porta' || blocoAlvo === 'porta_aberta';
+            let ehPortaTopo = false;
+            let portaX = gridX,
+                portaY = gridY;
+
+            if (!ehPorta && gridY + 1 < Config.ALTURA_MUNDO) {
+                let blocoAbaixo = this.world.mundo[gridX][gridY + 1];
+                if (blocoAbaixo === 'porta' || blocoAbaixo === 'porta_aberta') {
+                    ehPortaTopo = true;
+                    blocoAlvo = blocoAbaixo;
+                    portaY = gridY + 1;
+                }
+            }
+
+            // Interação com porta (clique com botão direito para abrir/fechar)
+            if (e.button === 2 && (ehPorta || ehPortaTopo)) {
+                let novoBloco = blocoAlvo === 'porta' ? 'porta_aberta' : 'porta';
+                this.world.mundo[portaX][portaY] = novoBloco;
+
+                SoundEffects.play('door');
+
+                const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: novoBloco };
+                if (this.network.souHost) {
+                    this.network.transmitir(pacote);
+                } else if (this.network.conexaoCliente) {
+                    this.network.conexaoCliente.send(pacote);
+                }
+                return;
+            }
+
+            let quebrando = e.button != 2;
+
+            let itemSelecionado = this.inventory.getItemSelecionado();
+            let idItem = itemSelecionado ? itemSelecionado.id : null;
+
+            let itemAtributos = idItem ? Config.ATRIBUTOS_ITENS[idItem] : null;
+            let ehPicareta = itemAtributos && itemAtributos.tipo === 'picareta';
+            let chave = `${portaX},${portaY}`;
+
+            if (quebrando && blocoAlvo !== 0 && ehPicareta) {
+                // Ativa animação local de swing
+                this.player.triggerSwing();
+
+                // Cria partículas visuais de quebra de bloco
+                this.criarParticulas(portaX, portaY, blocoAlvo);
+
+                SoundEffects.play('break_block');
+
+                this.world.blockDamage = this.world.blockDamage || {};
+
+                let ehMadeiraColocada = (blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') && this.world.madeiraColocada.has(chave);
+                let resistencia = Config.REGISTRO_BLOCOS[blocoAlvo]?.resistencia || 1;
+                if (ehMadeiraColocada) resistencia = 1; // Madeira de construção quebra em 1 hit!
+
+                let forca = itemAtributos.forca || 1;
+
+                this.world.blockDamage[chave] = (this.world.blockDamage[chave] || 0) + forca;
+
+                if (this.world.blockDamage[chave] >= resistencia) {
+                    delete this.world.blockDamage[chave];
+
+                    if ((blocoAlvo === 'madeira' || blocoAlvo === 'madeira_selva' || blocoAlvo === 'madeira_pinheiro') && !ehMadeiraColocada) {
+                        this.world.quebrarArvoreInteira(portaX, portaY, blocoAlvo);
+                    } else {
+                        this.world.criarDrop(portaX, portaY, blocoAlvo);
+                        this.world.mundo[portaX][portaY] = 0;
+
+                        // Remove do conjunto de madeira colocada
+                        this.world.madeiraColocada.delete(chave);
+
+                        const pacote = { tipo: 'BLOCO', x: portaX, y: portaY, idBloco: 0 };
+                        if (this.network.souHost) {
+                            this.network.transmitir(pacote);
+                        } else if (this.network.conexaoCliente) {
+                            this.network.conexaoCliente.send(pacote);
+                        }
+
+                        // Quebra plantas e decorações flutuantes diretamente acima
+                        this.world.verificarQuebraPlantaAcima(portaX, portaY);
+                    }
+                }
+            } else if (!quebrando && blocoAlvo === 0 && idItem && Config.REGISTRO_BLOCOS[idItem]) {
+                // Previne a colocação de blocos por cima do corpo de uma porta existente
+                let blocoAbaixo = (gridY + 1 < Config.ALTURA_MUNDO) ? this.world.mundo[gridX][gridY + 1] : 0;
+                if (blocoAbaixo === 'porta' || blocoAbaixo === 'porta_aberta') {
+                    return;
+                }
+
+                // Se for colocar porta, exige pelo menos 2 blocos verticais livres (gridY e gridY - 1)
+                if (idItem === 'porta') {
+                    if (gridY - 1 < 0 || this.world.mundo[gridX][gridY - 1] !== 0) {
+                        return;
+                    }
+                }
+
+                // Ativa animação local de swing para colocação
+                this.player.triggerSwing();
+
+                this.world.mundo[gridX][gridY] = idItem;
+                SoundEffects.play('place_block');
+
+                // Se o jogador colocou madeira, registra como madeira de construção colocada
+                if (idItem === 'madeira' || idItem === 'madeira_selva' || idItem === 'madeira_pinheiro') {
+                    this.world.madeiraColocada.add(chave);
+                }
+
+                this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
+                const pacote = { tipo: 'BLOCO', x: gridX, y: gridY, idBloco: idItem };
+                if (this.network.souHost) {
+                    this.network.transmitir(pacote);
+                } else if (this.network.conexaoCliente) {
+                    this.network.conexaoCliente.send(pacote);
+                }
+            }
+        }
     }
 
     obterCorBloco(tipo) {
@@ -366,7 +387,7 @@ class Game {
         let cor = this.obterCorBloco(tipo);
         let px = x * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
         let py = y * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
-        
+
         for (let i = 0; i < 10; i++) {
             this.particulas.push({
                 x: px,
@@ -381,9 +402,9 @@ class Game {
     }
 
     iniciarMusica() {
-        if (this.musicaFundo) return; 
-        
-        this.musicaFundo = new Audio(Config.MUSICAS.floresta.arquivo); 
+        if (this.musicaFundo) return;
+
+        this.musicaFundo = new Audio(Config.MUSICAS.floresta.arquivo);
         this.musicaFundo.loop = true;
         this.musicaFundo.volume = 0.3;
 
@@ -392,23 +413,43 @@ class Game {
 
     lerpColor(c1, c2, amt) {
         // Parse #hex para RGB
-        let r1 = parseInt(c1.substring(1,3), 16);
-        let g1 = parseInt(c1.substring(3,5), 16);
-        let b1 = parseInt(c1.substring(5,7), 16);
-        
-        let r2 = parseInt(c2.substring(1,3), 16);
-        let g2 = parseInt(c2.substring(3,5), 16);
-        let b2 = parseInt(c2.substring(5,7), 16);
-        
+        let r1 = parseInt(c1.substring(1, 3), 16);
+        let g1 = parseInt(c1.substring(3, 5), 16);
+        let b1 = parseInt(c1.substring(5, 7), 16);
+
+        let r2 = parseInt(c2.substring(1, 3), 16);
+        let g2 = parseInt(c2.substring(3, 5), 16);
+        let b2 = parseInt(c2.substring(5, 7), 16);
+
         let r = Math.floor(r1 + (r2 - r1) * amt);
         let g = Math.floor(g1 + (g2 - g1) * amt);
         let b = Math.floor(b1 + (b2 - b1) * amt);
-        
+
         return `rgb(${r}, ${g}, ${b})`;
     }
 
     loopJogo = () => {
         this.player.atualizarFisica();
+
+        // Mineração contínua segurando o mouse com a picareta
+        if (this.isMouseDown) {
+            let itemSelecionado = this.inventory.getItemSelecionado();
+            let ehPicareta = itemSelecionado && Config.ATRIBUTOS_ITENS[itemSelecionado.id] && Config.ATRIBUTOS_ITENS[itemSelecionado.id].tipo === 'picareta';
+            if (ehPicareta && this.mouseButton !== 2) {
+                this.mineracaoCooldown = this.mineracaoCooldown || 0;
+                if (this.mineracaoCooldown <= 0) {
+                    let fakeEvent = {
+                        clientX: this.lastMouseX,
+                        clientY: this.lastMouseY,
+                        button: this.mouseButton
+                    };
+                    this.processarAcaoMouse(fakeEvent);
+                    this.mineracaoCooldown = 15; // 4 hits por segundo
+                } else {
+                    this.mineracaoCooldown--;
+                }
+            }
+        }
 
         // Somente o Host controla tempo e spawn de inimigos
         if (this.network.souHost) {
@@ -435,9 +476,9 @@ class Game {
         this.particulas = this.particulas.filter(p => p.vida > 0);
 
         if (this.network.souHost && Object.keys(this.player.jogadores).length > 1) {
-            this.network.transmitir({ 
-                tipo: 'ATUALIZAR_JOGADORES', 
-                jogadores: this.player.jogadores 
+            this.network.transmitir({
+                tipo: 'ATUALIZAR_JOGADORES',
+                jogadores: this.player.jogadores
             });
         }
         this.desenhar();
@@ -463,14 +504,14 @@ class Game {
 
         let idx = 0;
         for (let i = 0; i < stops.length - 1; i++) {
-            if (H >= stops[i].h && H < stops[i+1].h) {
+            if (H >= stops[i].h && H < stops[i + 1].h) {
                 idx = i;
                 break;
             }
         }
-        let amt = (H - stops[idx].h) / (stops[idx+1].h - stops[idx].h);
-        let currentSkyTop = this.lerpColor(stops[idx].cTop, stops[idx+1].cTop, amt);
-        let currentSkyBot = this.lerpColor(stops[idx].cBot, stops[idx+1].cBot, amt);
+        let amt = (H - stops[idx].h) / (stops[idx + 1].h - stops[idx].h);
+        let currentSkyTop = this.lerpColor(stops[idx].cTop, stops[idx + 1].cTop, amt);
+        let currentSkyBot = this.lerpColor(stops[idx].cBot, stops[idx + 1].cBot, amt);
 
         let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
         grad.addColorStop(0, currentSkyTop);
@@ -501,9 +542,9 @@ class Game {
         let cy = this.canvas.height + 100; // centro do arco deslocado para baixo
         let rx = this.canvas.width * 0.5; // Raio orbital horizontal
         let ry = cy - 120; // Garante que o pico orbital fique sempre a 120px de altura
-        
+
         let sunX, sunY, moonX, moonY;
-        
+
         // O dia vai de 6:00 (360 min) às 18:00 (1080 min)
         if (this.tempoMinutos >= 360 && this.tempoMinutos < 1080) {
             let t = (this.tempoMinutos - 360) / 720;
@@ -551,7 +592,7 @@ class Game {
             this.ctx.beginPath();
             this.ctx.arc(moonX, moonY, 22, 0, Math.PI * 2);
             this.ctx.fill();
-            
+
             // Desenha pequenas manchas de crateras na lua
             this.ctx.fillStyle = 'rgba(120, 144, 156, 0.45)';
             this.ctx.beginPath();
@@ -575,29 +616,41 @@ class Game {
             // Interpolações harmônicas de transição crepuscular
             let transitionAmt = 0;
             let cFar1, cFar2, cNear1, cNear2, cPine1, cPine2;
-            
+
             if (H > 4.5 && H < 6.0) { // Alvorecer
                 transitionAmt = (H - 4.5) / 1.5;
-                cFar1 = '#151226'; cFar2 = '#ab5c39';
-                cNear1 = '#0b0918'; cNear2 = '#6d2d1f';
-                cPine1 = '#030f05'; cPine2 = '#3e2723';
+                cFar1 = '#151226';
+                cFar2 = '#ab5c39';
+                cNear1 = '#0b0918';
+                cNear2 = '#6d2d1f';
+                cPine1 = '#030f05';
+                cPine2 = '#3e2723';
             } else if (H >= 6.0 && H < 7.5) { // Nascer do sol completo
                 transitionAmt = (H - 6.0) / 1.5;
-                cFar1 = '#ab5c39'; cFar2 = '#90a4ae';
-                cNear1 = '#6d2d1f'; cNear2 = '#455a64';
-                cPine1 = '#3e2723'; cPine2 = '#1b5e20';
+                cFar1 = '#ab5c39';
+                cFar2 = '#90a4ae';
+                cNear1 = '#6d2d1f';
+                cNear2 = '#455a64';
+                cPine1 = '#3e2723';
+                cPine2 = '#1b5e20';
             } else if (H > 16.5 && H < 18.0) { // Entardecer
                 transitionAmt = (H - 16.5) / 1.5;
-                cFar1 = '#90a4ae'; cFar2 = '#ab5c39';
-                cNear1 = '#455a64'; cNear2 = '#6d2d1f';
-                cPine1 = '#1b5e20'; cPine2 = '#3e2723';
+                cFar1 = '#90a4ae';
+                cFar2 = '#ab5c39';
+                cNear1 = '#455a64';
+                cNear2 = '#6d2d1f';
+                cPine1 = '#1b5e20';
+                cPine2 = '#3e2723';
             } else { // Crepúsculo para noite
                 transitionAmt = (H - 18.0) / 1.5;
-                cFar1 = '#ab5c39'; cFar2 = '#151226';
-                cNear1 = '#6d2d1f'; cNear2 = '#0b0918';
-                cPine1 = '#3e2723'; cPine2 = '#030f05';
+                cFar1 = '#ab5c39';
+                cFar2 = '#151226';
+                cNear1 = '#6d2d1f';
+                cNear2 = '#0b0918';
+                cPine1 = '#3e2723';
+                cPine2 = '#030f05';
             }
-            
+
             farMountainColor = this.lerpColor(cFar1, cFar2, transitionAmt);
             nearMountainColor = this.lerpColor(cNear1, cNear2, transitionAmt);
             pineColor = this.lerpColor(cPine1, cPine2, transitionAmt);
@@ -631,25 +684,25 @@ class Game {
         this.ctx.fillStyle = pineColor;
         let arvoreLargura = 30;
         let totalArvores = Math.ceil(this.canvas.width / arvoreLargura) + 5;
-        let offsetFar = - (this.camera.x * 0.45) % arvoreLargura;
-        
+        let offsetFar = -(this.camera.x * 0.45) % arvoreLargura;
+
         for (let i = -1; i < totalArvores; i++) {
             let ax = i * arvoreLargura + offsetFar;
             let ay = 650 - this.camera.y * 0.25;
-            
+
             // Desenha triângulo duplo (estilo pinheiro pixelado)
             this.ctx.beginPath();
             this.ctx.moveTo(ax + arvoreLargura / 2, ay - 30);
             this.ctx.lineTo(ax, ay + 15);
             this.ctx.lineTo(ax + arvoreLargura, ay + 15);
             this.ctx.fill();
-            
+
             this.ctx.beginPath();
             this.ctx.moveTo(ax + arvoreLargura / 2, ay - 15);
             this.ctx.lineTo(ax - 5, ay + 30);
             this.ctx.lineTo(ax + arvoreLargura + 5, ay + 30);
             this.ctx.fill();
-            
+
             // Base da árvore até o fundo do canvas
             this.ctx.fillRect(ax - 5, ay + 30, arvoreLargura + 10, this.canvas.height - (ay + 30));
         }
@@ -662,9 +715,9 @@ class Game {
             let renderX = n.x - this.camera.x * 0.15;
             let renderY = n.y - this.camera.y * 0.05;
             this.ctx.beginPath();
-            this.ctx.arc(renderX, renderY, n.tamanho/2, 0, Math.PI*2);
-            this.ctx.arc(renderX + n.tamanho/2, renderY - n.tamanho/4, n.tamanho/2.5, 0, Math.PI*2);
-            this.ctx.arc(renderX + n.tamanho, renderY, n.tamanho/2.2, 0, Math.PI*2);
+            this.ctx.arc(renderX, renderY, n.tamanho / 2, 0, Math.PI * 2);
+            this.ctx.arc(renderX + n.tamanho / 2, renderY - n.tamanho / 4, n.tamanho / 2.5, 0, Math.PI * 2);
+            this.ctx.arc(renderX + n.tamanho, renderY, n.tamanho / 2.2, 0, Math.PI * 2);
             this.ctx.fill();
         });
     }
@@ -683,7 +736,7 @@ class Game {
 
         for (let tx = inicioX; tx <= fimX; tx++) {
             if (!this.world.mundo[tx]) continue;
-            
+
             // Encontra a altura do primeiro bloco sólido que bloqueia a luz do sol nesta coluna
             let yPrimeiroSolido = 0;
             while (yPrimeiroSolido < Config.ALTURA_MUNDO) {
@@ -807,10 +860,10 @@ class Game {
 
         this.ctx.beginPath();
         this.ctx.arc(
-            this.player.meuJogador.x + this.player.meuJogador.width / 2, 
-            this.player.meuJogador.y + this.player.meuJogador.height / 2, 
-            raioAtaque, 
-            startAngle, 
+            this.player.meuJogador.x + this.player.meuJogador.width / 2,
+            this.player.meuJogador.y + this.player.meuJogador.height / 2,
+            raioAtaque,
+            startAngle,
             endAngle
         );
         this.ctx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
@@ -824,14 +877,14 @@ class Game {
             let progresso = (15 - this.player.swingTimer) / 15;
             let raioAtual = raioAtaque * Math.sin(progresso * Math.PI / 2); // Expande de 0 a raioAtaque
             let opacidade = 1 - progresso;
-            
+
             this.ctx.save();
             this.ctx.beginPath();
             this.ctx.arc(
-                this.player.meuJogador.x + this.player.meuJogador.width / 2, 
-                this.player.meuJogador.y + this.player.meuJogador.height / 2, 
-                raioAtual, 
-                startAngle, 
+                this.player.meuJogador.x + this.player.meuJogador.width / 2,
+                this.player.meuJogador.y + this.player.meuJogador.height / 2,
+                raioAtual,
+                startAngle,
                 endAngle
             );
             this.ctx.strokeStyle = `rgba(0, 229, 255, ${opacidade})`; // Ciano elétrico
@@ -847,7 +900,7 @@ class Game {
         // Desenha inimigos ativos (Zumbis e Slimes) no cenário
         this.world.inimigos.forEach(enemy => {
             this.ctx.save();
-            
+
             // Slime Azul
             if (enemy.tipo === 'slime_azul') {
                 this.ctx.fillStyle = 'rgba(33, 150, 243, 0.85)';
@@ -861,7 +914,7 @@ class Game {
                 this.ctx.strokeStyle = '#0d47a1';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
-                
+
                 // Olhinhos brancos e pupilas fofas do slime
                 this.ctx.fillStyle = '#FFFFFF';
                 this.ctx.fillRect(enemy.x + 5, enemy.y + 4, 3, 3);
@@ -869,31 +922,31 @@ class Game {
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(enemy.x + 6, enemy.y + 5, 1, 1);
                 this.ctx.fillRect(enemy.x + 14, enemy.y + 5, 1, 1);
-            } 
+            }
             // Zumbi
             else if (enemy.tipo === 'zombie') {
                 // Pele verde zumbi
                 this.ctx.fillStyle = '#4CAF50';
                 this.ctx.fillRect(enemy.x + 2, enemy.y, 13, 10);
-                
+
                 // Olhos pretos
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(enemy.x + 4, enemy.y + 3, 2, 2);
                 this.ctx.fillRect(enemy.x + 11, enemy.y + 3, 2, 2);
-                
+
                 // Camisa azul
                 this.ctx.fillStyle = '#1565C0';
                 this.ctx.fillRect(enemy.x + 1, enemy.y + 10, 15, 12);
-                
+
                 // Braços esticados para frente (pose clássica de zumbi)
                 this.ctx.fillStyle = '#4CAF50';
                 this.ctx.fillRect(enemy.x - 3, enemy.y + 11, 4, 4);
                 this.ctx.fillRect(enemy.x + 16, enemy.y + 11, 4, 4);
-                
+
                 // Calça roxa
                 this.ctx.fillStyle = '#5E35B1';
                 this.ctx.fillRect(enemy.x + 2, enemy.y + 22, 13, 7);
-                
+
                 // Sapatos marrons
                 this.ctx.fillStyle = '#3E2723';
                 this.ctx.fillRect(enemy.x + 1, enemy.y + 29, 6, 2);
@@ -908,7 +961,7 @@ class Game {
                 this.ctx.fillStyle = '#f44336'; // Barra vermelha de dano
                 this.ctx.fillRect(enemy.x - 3, enemy.y - 10, (enemy.width + 6) * pct, 4);
             }
-            
+
             this.ctx.restore();
         });
 
@@ -919,18 +972,18 @@ class Game {
             this.lightCanvas.width = cols;
             this.lightCanvas.height = rows;
             this.lightCtx.clearRect(0, 0, cols, rows);
-            
+
             for (let cx = 0; cx < cols; cx++) {
                 let worldX = inicioX + cx;
                 for (let cy = 0; cy < rows; cy++) {
                     let worldY = inicioY + cy;
                     let esc = this.calcularEscuridaoBloco(worldX, worldY);
-                    
+
                     this.lightCtx.fillStyle = `rgba(5, 5, 20, ${esc})`;
                     this.lightCtx.fillRect(cx, cy, 1, 1);
                 }
             }
-            
+
             this.ctx.save();
             this.ctx.imageSmoothingEnabled = true;
             this.ctx.drawImage(
@@ -947,7 +1000,7 @@ class Game {
 
         // 5. MÁSCARA DE CREPÚSCULO E ESCURIDÃO AMBIENTE (SUNRISE/SUNSET/NIGHT GLOW)
         let H = this.tempoMinutos / 60;
-        
+
         // Efeito Alaranjado no Nascer/Pôr do sol
         let orangeTintOpacity = 0;
         if (H >= 5.5 && H <= 7.5) { // Nascer
@@ -973,21 +1026,21 @@ class Game {
         if (darkness > 0.01) {
             let lightX = this.player.meuJogador.x + this.player.meuJogador.width / 2 - this.camera.x;
             let lightY = this.player.meuJogador.y + this.player.meuJogador.height / 2 - this.camera.y;
-            
+
             // Limpa o canvas de máscara offscreen
             this.maskCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            
+
             // Preenche máscara com escuridão total da noite
             this.maskCtx.fillStyle = `rgba(5, 5, 20, ${darkness})`;
             this.maskCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            
+
             // Recorta o gradiente radial do spotlight na máscara (destination-out)
             this.maskCtx.save();
             this.maskCtx.globalCompositeOperation = 'destination-out';
             let grad = this.maskCtx.createRadialGradient(lightX, lightY, 15, lightX, lightY, 150);
-            grad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');      // Transparência total no centro
-            grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.4)');    // Meio-tom
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');      // Opacidade total nas bordas da máscara
+            grad.addColorStop(0, 'rgba(0, 0, 0, 1.0)'); // Transparência total no centro
+            grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.4)'); // Meio-tom
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)'); // Opacidade total nas bordas da máscara
             this.maskCtx.fillStyle = grad;
             this.maskCtx.beginPath();
             this.maskCtx.arc(lightX, lightY, 150, 0, Math.PI * 2);
@@ -1004,12 +1057,12 @@ class Game {
                     if (this.world.mundo[x] && this.world.mundo[x][y] === 'tocha') {
                         let tochaX = x * Config.TAM_BLOCO + Config.TAM_BLOCO / 2 - this.camera.x;
                         let tochaY = y * Config.TAM_BLOCO + Config.TAM_BLOCO / 2 - this.camera.y;
-                        
+
                         let gradTocha = this.maskCtx.createRadialGradient(tochaX, tochaY, 10, tochaX, tochaY, 120);
                         gradTocha.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
                         gradTocha.addColorStop(0.5, 'rgba(0, 0, 0, 0.5)');
                         gradTocha.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
-                        
+
                         this.maskCtx.fillStyle = gradTocha;
                         this.maskCtx.beginPath();
                         this.maskCtx.arc(tochaX, tochaY, 120, 0, Math.PI * 2);
@@ -1026,9 +1079,9 @@ class Game {
         const barW = 220;
         const barH = 18;
         const barX = this.canvas.width - barW - 30; // Alinhado ao canto superior direito
-        
+
         this.ctx.save();
-        
+
         // Efeitos ativos (Canto Superior Esquerdo)
         if (this.player.potionCooldownEnd && this.player.potionCooldownEnd > Date.now()) {
             let remaining = Math.ceil((this.player.potionCooldownEnd - Date.now()) / 1000);
@@ -1039,11 +1092,11 @@ class Game {
             this.ctx.fillText(`Cooldown de Poção: ${remaining}s`, 20, 30);
             this.ctx.shadowBlur = 0; // reset
         }
-        
+
         // ==================== 1. HUD DE VIDA ====================
         const vidaY = 30;
         const vidaVal = Math.max(0, this.player.meuJogador.vida); // 0 a 100
-        
+
         // Sombra de texto para legibilidade premium
         this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         this.ctx.shadowBlur = 4;
@@ -1099,7 +1152,7 @@ class Game {
         // ==================== 2. HUD DE STAMINA ====================
         const staminaY = 75;
         const staminaVal = this.player.meuJogador.sprintBar; // 0 a 100
-        
+
         // Sombra de texto
         this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         this.ctx.shadowBlur = 4;

@@ -185,17 +185,30 @@ class TextureManager {
 
         // 15. PICARETA DE COBRE
         this.criarTextura('picareta_cobre', (cx) => {
-            // Cabo de madeira
-            cx.fillStyle = '#5D4037'; cx.fillRect(8, 8, 4, 12);
-            cx.fillStyle = '#8D6E63'; cx.fillRect(9, 9, 2, 10);
-            // Lâmina metálica de cobre
-            cx.fillStyle = '#D84315'; // Sombra
-            cx.fillRect(2, 4, 16, 4);
-            cx.fillStyle = '#FF7043'; // Cobre principal
-            cx.fillRect(3, 3, 14, 2); cx.fillRect(1, 5, 2, 2); cx.fillRect(17, 5, 2, 2);
-            // Brilho de reflexão metálica
-            cx.fillStyle = '#FFAB91'; 
-            cx.fillRect(7, 3, 6, 1); cx.fillRect(14, 4, 2, 1);
+            cx.translate(10, 10);
+            cx.rotate(Math.PI / 4);
+            cx.translate(-10, -10);
+            
+            cx.fillStyle = '#5d4037'; // Cabo
+            cx.fillRect(9, 6, 2, 12);
+            
+            cx.fillStyle = '#FF7043'; // Cabeça de cobre
+            cx.beginPath();
+            cx.moveTo(10, 6);
+            cx.lineTo(2, 8);
+            cx.lineTo(3, 4);
+            cx.lineTo(10, 2);
+            cx.lineTo(17, 4);
+            cx.lineTo(18, 8);
+            cx.fill();
+            
+            cx.fillStyle = '#D84315'; // Sombra da cabeça
+            cx.beginPath();
+            cx.moveTo(10, 6);
+            cx.lineTo(10, 2);
+            cx.lineTo(17, 4);
+            cx.lineTo(18, 8);
+            cx.fill();
         });
 
         // 16. GRAMA ALTA (FLORESTA)
@@ -510,24 +523,27 @@ class TextureManager {
             cx.fillRect(16, 9, 1, 1);
         });
 
-        // 34. ESPADA DE COBRE
         this.criarTextura('espada_cobre', (cx) => {
-            // Cabo de madeira/couro
-            cx.fillStyle = '#5D4037'; cx.fillRect(3, 17, 3, 3);
-            cx.fillStyle = '#8D6E63'; cx.fillRect(4, 16, 2, 2);
-            // Guarda de mão (guarda de cobre)
-            cx.fillStyle = '#D84315';
-            cx.fillRect(5, 14, 5, 2);
-            cx.fillRect(4, 15, 2, 3);
-            // Lâmina de cobre diagonal
-            cx.fillStyle = '#FF7043'; // Cobre principal
-            for (let i = 0; i < 11; i++) {
-                cx.fillRect(6 + i, 13 - i, 2, 2);
-            }
-            cx.fillStyle = '#FFAB91'; // Brilho metálico superior
-            for (let i = 0; i < 11; i++) {
-                cx.fillRect(7 + i, 13 - i, 1, 1);
-            }
+            cx.translate(10, 10);
+            cx.rotate(Math.PI / 4);
+            cx.translate(-10, -10);
+            
+            cx.fillStyle = '#5d4037'; // Cabo
+            cx.fillRect(8, 12, 4, 6);
+            cx.fillStyle = '#795548'; // Guarda
+            cx.fillRect(4, 10, 12, 2);
+            
+            cx.fillStyle = '#FF7043'; // Lâmina base
+            cx.fillRect(8, 2, 4, 8);
+            cx.fillStyle = '#D84315'; // Fio da lâmina
+            cx.fillRect(10, 2, 2, 8);
+            
+            cx.fillStyle = '#FF7043'; // Ponta
+            cx.beginPath();
+            cx.moveTo(8, 2);
+            cx.lineTo(10, 0);
+            cx.lineTo(12, 2);
+            cx.fill();
         });
 
         // 35. GEL (DROP DE SLIME)
