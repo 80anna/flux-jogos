@@ -95,6 +95,20 @@ class Game {
             // Ataque em arco de meia lua na frente do jogador (botão esquerdo / clique normal), independente do lugar mirado
             let inimigosAtingidos = [];
             if (e.button !== 2) {
+                let itemSelecionado = this.inventory.getItemSelecionado();
+                let idItem = itemSelecionado ? itemSelecionado.id : null;
+                
+                // Lógica de consumo de cura (Bandaid)
+                if (idItem && Config.ATRIBUTOS_ITENS[idItem] && Config.ATRIBUTOS_ITENS[idItem].tipo === 'cura') {
+                    if (this.player.potionCooldownEnd && this.player.potionCooldownEnd > Date.now()) {
+                        return; // Cooldown ativo, não pode usar
+                    }
+                    this.player.meuJogador.vida = Math.min(100, this.player.meuJogador.vida + Config.ATRIBUTOS_ITENS[idItem].cura);
+                    this.player.potionCooldownEnd = Date.now() + 30000; // 30 segundos de cooldown
+                    this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
+                    return; // Consumido com sucesso, não ataca nem tenta colocar bloco
+                }
+
                 // Impede o ataque se o cooldown ainda estiver ativo
                 if (this.player.cooldownAtaque > 0) return;
 
@@ -107,11 +121,8 @@ class Game {
                 // Rotaciona instantaneamente o olhar do jogador para a direção da mira do mouse ao bater
                 const atacandoParaDireita = mouseX >= centroJogadorX;
                 this.player.meuJogador.facingRight = atacandoParaDireita;
-
-                let itemSelecionado = this.inventory.getItemSelecionado();
-                let idItem = itemSelecionado ? itemSelecionado.id : null;
                 
-                // Determina o dano e o raio do arco de ataque (tamanho da meia lua) dependendo da arma
+                // Determina o dano e o raio do arco de ataque dependendo da arma
                 let dano = 1;
                 let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
                 if (idItem === 'espada_cobre') {
@@ -120,9 +131,15 @@ class Game {
                 } else if (idItem === 'picareta_cobre') {
                     dano = 3;
                     raioAtaque = 48; // Picareta de Cobre (2.0 blocos)
+                } else if (idItem === 'espada_ferro') {
+                    dano = 13; // +5 comparado a cobre (a arma causará dps muito forte somado com a base)
+                    raioAtaque = 65; // Ligeiramente maior alcance
+                } else if (idItem === 'picareta_ferro') {
+                    dano = 5;
+                    raioAtaque = 52;
                 }
 
-                // Procura todos os inimigos no raio e no hemisfério frontal (meia lua na frente do jogador)
+                // Procura todos os inimigos no raio (Ataque Circular 360º em volta do jogador)
                 for (let idx = this.world.inimigos.length - 1; idx >= 0; idx--) {
                     let enemy = this.world.inimigos[idx];
                     let centroInimigoX = enemy.x + enemy.width / 2;
@@ -130,11 +147,9 @@ class Game {
                     let distPlayerInimigo = Math.sqrt(Math.pow(centroJogadorX - centroInimigoX, 2) + Math.pow(centroJogadorY - centroInimigoY, 2));
                     
                     if (distPlayerInimigo <= raioAtaque) {
-                        // Verifica se o inimigo está posicionado à frente do jogador (hemisfério correto)
-                        const noSetorFrontal = atacandoParaDireita ? (centroInimigoX >= centroJogadorX) : (centroInimigoX < centroJogadorX);
-                        if (noSetorFrontal) {
-                            inimigosAtingidos.push({ enemy, idx, dano, centroInimigoX, centroInimigoY });
-                        }
+                        // Ataque atinge todos ao redor, independente da direção que está olhando
+                        inimigosAtingidos.push({ enemy, idx, dano, centroInimigoX, centroInimigoY });
+                    }
                     }
                 }
             }
@@ -393,16 +408,22 @@ class Game {
     }
 
     loopJogo = () => {
-        // Controle de tempo robusto
-        let now = Date.now();
-        if (now - this.lastTimeMinutesUpdate >= Config.DURACAO_MINUTO_REAL) {
-            this.tempoMinutos = (this.tempoMinutos + 1) % 1440; // 1440 minutos em um ciclo de 24h
-            this.lastTimeMinutesUpdate = now;
-        }
-
         this.player.atualizarFisica();
-        this.world.spawnInimigos();
-        this.world.atualizarInimigos();
+
+        // Somente o Host controla tempo e spawn de inimigos
+        if (this.network.souHost) {
+            // Controle de tempo robusto
+            let now = Date.now();
+            if (now - this.lastTimeMinutesUpdate >= Config.DURACAO_MINUTO_REAL) {
+                this.tempoMinutos = (this.tempoMinutos + 1) % 1440; // 1440 minutos em um ciclo de 24h
+                this.lastTimeMinutesUpdate = now;
+                this.network.transmitir({ tipo: 'ATUALIZAR_TEMPO', tempoMinutos: this.tempoMinutos });
+            }
+
+            this.world.spawnInimigos();
+            this.world.atualizarInimigos();
+            this.network.transmitir({ tipo: 'ATUALIZAR_INIMIGOS', inimigos: this.world.inimigos });
+        }
 
         // Atualização física das partículas
         this.particulas.forEach(p => {
@@ -772,16 +793,17 @@ class Game {
         this.ctx.stroke();
         this.ctx.setLineDash([]);
 
-        // Desenha a Área de Alcance de Ataque (Sweep - Meia Lua frontal dinâmica dependendo da arma)
+        // Desenha a Área de Alcance de Ataque (Sweep - Círculo Completo 360º)
         let itemSelecionado = this.inventory.getItemSelecionado();
         let idItem = itemSelecionado ? itemSelecionado.id : null;
         let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
-        if (idItem === 'espada_cobre') raioAtaque = 60; // Espada (2.5 blocos de alcance!)
-        else if (idItem === 'picareta_cobre') raioAtaque = 48; // Picareta (2.0 blocos)
+        if (idItem === 'espada_cobre') raioAtaque = 60;
+        else if (idItem === 'picareta_cobre') raioAtaque = 48;
+        else if (idItem === 'espada_ferro') raioAtaque = 65;
+        else if (idItem === 'picareta_ferro') raioAtaque = 52;
 
-        let facingRight = this.player.meuJogador.facingRight !== false;
-        let startAngle = facingRight ? -Math.PI / 2 : Math.PI / 2;
-        let endAngle = facingRight ? Math.PI / 2 : 3 * Math.PI / 2;
+        let startAngle = 0;
+        let endAngle = Math.PI * 2;
 
         this.ctx.beginPath();
         this.ctx.arc(
@@ -970,6 +992,31 @@ class Game {
             this.maskCtx.beginPath();
             this.maskCtx.arc(lightX, lightY, 150, 0, Math.PI * 2);
             this.maskCtx.fill();
+
+            // Recorta também ao redor de tochas visíveis
+            let inicioX = Math.max(0, Math.floor(this.camera.x / Config.TAM_BLOCO));
+            let fimX = Math.min(Config.LARGURA_MUNDO, Math.ceil((this.camera.x + this.canvas.width) / Config.TAM_BLOCO));
+            let inicioY = Math.max(0, Math.floor(this.camera.y / Config.TAM_BLOCO));
+            let fimY = Math.min(Config.ALTURA_MUNDO, Math.ceil((this.camera.y + this.canvas.height) / Config.TAM_BLOCO));
+
+            for (let x = inicioX; x < fimX; x++) {
+                for (let y = inicioY; y < fimY; y++) {
+                    if (this.world.mundo[x] && this.world.mundo[x][y] === 'tocha') {
+                        let tochaX = x * Config.TAM_BLOCO + Config.TAM_BLOCO / 2 - this.camera.x;
+                        let tochaY = y * Config.TAM_BLOCO + Config.TAM_BLOCO / 2 - this.camera.y;
+                        
+                        let gradTocha = this.maskCtx.createRadialGradient(tochaX, tochaY, 10, tochaX, tochaY, 120);
+                        gradTocha.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
+                        gradTocha.addColorStop(0.5, 'rgba(0, 0, 0, 0.5)');
+                        gradTocha.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+                        
+                        this.maskCtx.fillStyle = gradTocha;
+                        this.maskCtx.beginPath();
+                        this.maskCtx.arc(tochaX, tochaY, 120, 0, Math.PI * 2);
+                        this.maskCtx.fill();
+                    }
+                }
+            }
             this.maskCtx.restore();
 
             // Desenha a máscara por cima do canvas principal
@@ -981,6 +1028,17 @@ class Game {
         const barX = this.canvas.width - barW - 30; // Alinhado ao canto superior direito
         
         this.ctx.save();
+        
+        // Efeitos ativos (Canto Superior Esquerdo)
+        if (this.player.potionCooldownEnd && this.player.potionCooldownEnd > Date.now()) {
+            let remaining = Math.ceil((this.player.potionCooldownEnd - Date.now()) / 1000);
+            this.ctx.fillStyle = '#ff5252';
+            this.ctx.font = 'bold 16px "Outfit", sans-serif';
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.shadowBlur = 4;
+            this.ctx.fillText(`Cooldown de Poção: ${remaining}s`, 20, 30);
+            this.ctx.shadowBlur = 0; // reset
+        }
         
         // ==================== 1. HUD DE VIDA ====================
         const vidaY = 30;

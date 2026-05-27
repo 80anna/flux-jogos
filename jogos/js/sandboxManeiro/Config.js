@@ -42,6 +42,7 @@ class Config {
         'arbusto_florido': { colisao: false, resistencia: 10 },
         // Blocos novos
         'minerio_carvao': { colisao: true, resistencia: 30 },
+        'minerio_ferro': { colisao: true, resistencia: 40 },
         'tocha': { colisao: false, resistencia: 5 },
         // Blocos de Decoração e Plataformas
         'cadeira': { colisao: false, resistencia: 5 },
@@ -54,8 +55,11 @@ class Config {
     };
 
     static ATRIBUTOS_ITENS = {
-        'picareta_cobre': { tipo: 'picareta', forca: 7 },
-        'espada_cobre': { tipo: 'espada', dano: 10 }
+        'picareta_cobre': { tipo: 'picareta', forca: 10 },
+        'espada_cobre': { tipo: 'espada', dano: 15 },
+        'picareta_ferro': { tipo: 'picareta', forca: 15 },
+        'espada_ferro': { tipo: 'espada', dano: 20 },
+        'bandaid': { tipo: 'cura', cura: 20 }
     };
 
     static MUSICAS = {
@@ -75,7 +79,10 @@ class Config {
         { resultado: 'cadeira', qtdResultado: 1, label: '1 Cadeira', reqs: [{ id: 'tabua', qtd: 4, label: '4 Tábuas' }] },
         { resultado: 'mesa', qtdResultado: 1, label: '1 Mesa', reqs: [{ id: 'tabua', qtd: 6, label: '6 Tábuas' }] },
         { resultado: 'porta', qtdResultado: 1, label: '1 Porta', reqs: [{ id: 'tabua', qtd: 6, label: '6 Tábuas' }] },
-        { resultado: 'plataforma_madeira', qtdResultado: 4, label: '4 Plataformas', reqs: [{ id: 'tabua', qtd: 2, label: '2 Tábuas' }] }
+        { resultado: 'plataforma_madeira', qtdResultado: 4, label: '4 Plataformas', reqs: [{ id: 'tabua', qtd: 2, label: '2 Tábuas' }] },
+        { resultado: 'bandaid', qtdResultado: 1, label: '1 Bandaid', reqs: [{ id: 'folha', qtd: 4, label: '4 Folhas' }, { id: 'gel', qtd: 2, label: '2 Geis' }] },
+        { resultado: 'espada_ferro', qtdResultado: 1, label: '1 Espada de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] },
+        { resultado: 'picareta_ferro', qtdResultado: 1, label: '1 Picareta de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] }
     ];
 }
 // Vincula ao escopo global explicitamente

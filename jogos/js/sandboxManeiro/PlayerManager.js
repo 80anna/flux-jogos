@@ -76,7 +76,7 @@ class PlayerManager {
     atualizarFisica() {
         // Regeneração de Vida: 1 de vida a cada 5 segundos (300 frames)
         this.regenTimer = (this.regenTimer || 0) + 1;
-        if (this.regenTimer >= 300) {
+        if (this.regenTimer >= 120) {
             this.regenTimer = 0;
             this.meuJogador.vida = Math.min(100, this.meuJogador.vida + 1);
         }

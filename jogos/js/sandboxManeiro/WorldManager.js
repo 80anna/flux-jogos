@@ -61,15 +61,15 @@ class WorldManager {
         }
 
         // Cavernas Melhores (Gerador de túneis de largura variável e câmaras amplas)
-        for (let i = 0; i < 110; i++) {
+        for (let i = 0; i < 200; i++) { // Aumentado para 200 cavernas
             let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
             let cy = 40 + Math.floor(Math.random() * (Config.ALTURA_MUNDO - 60)); // espalha mais verticalmente!
             
-            let raioTudo = 1 + Math.floor(Math.random() * 3); // raio de 1 a 3 blocos
+            let raioTudo = 1 + Math.floor(Math.random() * 4); // raio de 1 a 4 blocos
             for (let passo = 0; passo < 250; passo++) {
-                // Varia o raio do túnel organicamente para criar passagens estreitas e salões amplos
-                if (passo % 15 === 0) {
-                    raioTudo = Math.max(1, Math.min(3, raioTudo + (Math.random() > 0.5 ? 1 : -1)));
+                // Varia o raio do túnel organicamente para criar passagens estreitas e salões gigantes
+                if (passo % 10 === 0) {
+                    raioTudo = Math.max(1, Math.min(5, raioTudo + (Math.random() > 0.5 ? 2 : -1))); // Variações mais bruscas
                 }
                 
                 // Escava um círculo de ar
@@ -85,9 +85,9 @@ class WorldManager {
                     }
                 }
                 
-                // Movimento sinuoso (Random Walk aprimorado)
-                cx += Math.floor(Math.random() * 3) - 1;
-                cy += Math.floor(Math.random() * 3) - 1;
+                // Movimento sinuoso (Random Walk aprimorado com mais caos)
+                cx += Math.floor(Math.random() * 5) - 2;
+                cy += Math.floor(Math.random() * 5) - 2;
                 
                 // Mantém dentro dos limites verticais saudáveis
                 if (cy < 35) cy = 35;
@@ -135,13 +135,13 @@ class WorldManager {
             }
         }
 
-        // Geração de Veias de Carvão no Subsolo (Clusters) - Frequência aumentada e veias maiores (pelo menos 10 blocos)
+        // Geração de Veias de Carvão no Subsolo (Clusters) - Tamanho 2x maior
         let totalVeias = Math.floor((Config.LARGURA_MUNDO * Config.ALTURA_MUNDO) / 150);
         for (let v = 0; v < totalVeias; v++) {
             let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
             let cy = 45 + Math.floor(Math.random() * (Config.ALTURA_MUNDO - 55));
             
-            let tamVeia = 10 + Math.floor(Math.random() * 6); // Pelo menos 10 blocos por veia (10 a 15 blocos)
+            let tamVeia = 20 + Math.floor(Math.random() * 12); // Pelo menos 20 blocos por veia (20 a 31 blocos)
             for (let b = 0; b < tamVeia; b++) {
                 if (this.mundo[cx] && this.mundo[cx][cy] === 'pedra') {
                     this.mundo[cx][cy] = 'minerio_carvao';
@@ -152,6 +152,27 @@ class WorldManager {
                 if (cx < 0) cx = 0;
                 if (cx >= Config.LARGURA_MUNDO) cx = Config.LARGURA_MUNDO - 1;
                 if (cy < 45) cy = 45;
+                if (cy >= Config.ALTURA_MUNDO) cy = Config.ALTURA_MUNDO - 1;
+            }
+        }
+
+        // Geração de Veias de Ferro no Subsolo
+        let totalVeiasFerro = Math.floor((Config.LARGURA_MUNDO * Config.ALTURA_MUNDO) / 250); // Ligeiramente mais raro que carvão
+        for (let v = 0; v < totalVeiasFerro; v++) {
+            let cx = Math.floor(Math.random() * Config.LARGURA_MUNDO);
+            let cy = 55 + Math.floor(Math.random() * (Config.ALTURA_MUNDO - 65)); // Um pouco mais profundo
+            
+            let tamVeia = 15 + Math.floor(Math.random() * 8); // 15 a 22 blocos
+            for (let b = 0; b < tamVeia; b++) {
+                if (this.mundo[cx] && this.mundo[cx][cy] === 'pedra') {
+                    this.mundo[cx][cy] = 'minerio_ferro';
+                }
+                cx += Math.floor(Math.random() * 3) - 1;
+                cy += Math.floor(Math.random() * 3) - 1;
+                
+                if (cx < 0) cx = 0;
+                if (cx >= Config.LARGURA_MUNDO) cx = Config.LARGURA_MUNDO - 1;
+                if (cy < 55) cy = 55;
                 if (cy >= Config.ALTURA_MUNDO) cy = Config.ALTURA_MUNDO - 1;
             }
         }
@@ -231,6 +252,7 @@ class WorldManager {
     criarDrop(x, y, tipo) {
         let tipoDrop = tipo;
         if (tipo === 'minerio_carvao') tipoDrop = 'carvao';
+        if (tipo === 'minerio_ferro') tipoDrop = 'ferro';
 
         const idDrop = Math.random().toString(36).substr(2, 9);
         const offset = Config.TAM_BLOCO / 4;
@@ -370,7 +392,7 @@ class WorldManager {
         let tipoInimigo = '';
         if (eDia) {
             // De dia spawna apenas Slime Azul
-            if (Math.random() < 0.15) {
+            if (Math.random() < 0.1) {
                 tipoInimigo = 'slime_azul';
             }
         } else {
@@ -426,7 +448,7 @@ class WorldManager {
                 height: 16,
                 vida: 50,
                 maxVida: 50,
-                dano: 15,
+                dano: 10,
                 hopTimer: Math.random() * 60,
                 dropItem: 'gel'
             });
@@ -442,7 +464,7 @@ class WorldManager {
                 height: 31,
                 vida: 70,
                 maxVida: 70,
-                dano: 25,
+                dano: 15,
                 dropItem: 'carne_podre',
                 growlTimer: Math.random() * 150
             });

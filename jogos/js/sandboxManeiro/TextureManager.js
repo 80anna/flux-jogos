@@ -596,6 +596,100 @@ class TextureManager {
             cx.fillRect(2, 14, 2, 2);
             cx.fillRect(10, 10, 2, 2);
         });
+
+        // 39. BANDAID (ITEM CURA)
+        this.criarTextura('bandaid', (cx) => {
+            cx.fillStyle = '#ffccaa'; // Bege base
+            cx.fillRect(3, 8, 14, 4);
+            cx.fillStyle = '#eeaa88'; // Borda
+            cx.fillRect(4, 7, 12, 1);
+            cx.fillRect(4, 12, 12, 1);
+            cx.fillStyle = '#ffffff'; // Centro branco
+            cx.fillRect(7, 7, 6, 6);
+            cx.fillStyle = '#d32f2f'; // Cruz vermelha
+            cx.fillRect(9, 8, 2, 4);
+            cx.fillRect(8, 9, 4, 2);
+        });
+
+        // 40. MINERIO DE FERRO (BLOCO)
+        this.criarTextura('minerio_ferro', (cx) => {
+            cx.fillStyle = '#616161'; // Pedra base
+            cx.fillRect(0, 0, 20, 20);
+            cx.fillStyle = '#424242'; // Textura pedra
+            cx.fillRect(2, 2, 6, 6);
+            cx.fillRect(10, 8, 8, 5);
+            cx.fillRect(4, 12, 5, 6);
+            // Pontinhos de ferro (metálico/alaranjado)
+            cx.fillStyle = '#ffcc80'; // Ferrugem leve
+            cx.fillRect(3, 4, 2, 2);
+            cx.fillRect(12, 3, 2, 2);
+            cx.fillRect(14, 10, 2, 2);
+            cx.fillStyle = '#eeeeee'; // Prata
+            cx.fillRect(5, 14, 2, 2);
+            cx.fillRect(8, 7, 2, 2);
+        });
+
+        // 41. FERRO (ITEM)
+        this.criarTextura('ferro', (cx) => {
+            cx.fillStyle = '#e0e0e0'; // Prata claro
+            cx.fillRect(4, 6, 12, 8);
+            cx.fillStyle = '#9e9e9e'; // Prata escuro borda
+            cx.fillRect(5, 7, 10, 6);
+            cx.fillStyle = '#ffffff'; // Brilho
+            cx.fillRect(6, 8, 3, 2);
+        });
+
+        // 42. ESPADA DE FERRO
+        this.criarTextura('espada_ferro', (cx) => {
+            cx.translate(10, 10);
+            cx.rotate(Math.PI / 4);
+            cx.translate(-10, -10);
+            
+            cx.fillStyle = '#5d4037'; // Cabo
+            cx.fillRect(8, 12, 4, 6);
+            cx.fillStyle = '#795548'; // Guarda
+            cx.fillRect(4, 10, 12, 2);
+            
+            cx.fillStyle = '#e0e0e0'; // Lâmina base
+            cx.fillRect(8, 2, 4, 8);
+            cx.fillStyle = '#bdbdbd'; // Fio da lâmina
+            cx.fillRect(10, 2, 2, 8);
+            
+            cx.fillStyle = '#e0e0e0'; // Ponta
+            cx.beginPath();
+            cx.moveTo(8, 2);
+            cx.lineTo(10, 0);
+            cx.lineTo(12, 2);
+            cx.fill();
+        });
+
+        // 43. PICARETA DE FERRO
+        this.criarTextura('picareta_ferro', (cx) => {
+            cx.translate(10, 10);
+            cx.rotate(Math.PI / 4);
+            cx.translate(-10, -10);
+            
+            cx.fillStyle = '#5d4037'; // Cabo
+            cx.fillRect(9, 6, 2, 12);
+            
+            cx.fillStyle = '#e0e0e0'; // Cabeça de ferro
+            cx.beginPath();
+            cx.moveTo(10, 6);
+            cx.lineTo(2, 8);
+            cx.lineTo(3, 4);
+            cx.lineTo(10, 2);
+            cx.lineTo(17, 4);
+            cx.lineTo(18, 8);
+            cx.fill();
+            
+            cx.fillStyle = '#bdbdbd'; // Sombra da cabeça
+            cx.beginPath();
+            cx.moveTo(10, 6);
+            cx.lineTo(10, 2);
+            cx.lineTo(17, 4);
+            cx.lineTo(18, 8);
+            cx.fill();
+        });
     }
 
     get(id) {

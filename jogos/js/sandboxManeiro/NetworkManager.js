@@ -65,7 +65,9 @@ class NetworkManager {
                     tipo: 'INIT', 
                     mundo: this.game.world.mundo, 
                     jogadores: this.game.player.jogadores, 
-                    drops: this.game.world.drops 
+                    drops: this.game.world.drops,
+                    tempoMinutos: this.game.tempoMinutos,
+                    inimigos: this.game.world.inimigos
                 });
                 document.getElementById('qtd-jogadores').innerText = this.conexoesHost.length + 1;
             });
@@ -107,6 +109,8 @@ class NetworkManager {
             this.game.world.mundo = dados.mundo;
             this.game.player.jogadores = dados.jogadores;
             this.game.world.drops = dados.drops || {};
+            if (dados.tempoMinutos !== undefined) this.game.tempoMinutos = dados.tempoMinutos;
+            if (dados.inimigos !== undefined) this.game.world.inimigos = dados.inimigos;
             const keys = Object.keys(this.game.player.jogadores);
             if (keys.length > 0) {
                 this.game.player.meuJogador.x = this.game.player.jogadores[keys[0]].x;
@@ -114,6 +118,12 @@ class NetworkManager {
             }
             this.game.player.jogadores[this.meuId] = this.game.player.meuJogador;
             this.game.loopJogo();
+        }
+        if (dados.tipo === 'ATUALIZAR_TEMPO') {
+            this.game.tempoMinutos = dados.tempoMinutos;
+        }
+        if (dados.tipo === 'ATUALIZAR_INIMIGOS') {
+            this.game.world.inimigos = dados.inimigos;
         }
         if (dados.tipo === 'ATUALIZAR_JOGADORES') {
             this.game.player.jogadores = dados.jogadores;
