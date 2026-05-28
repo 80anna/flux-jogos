@@ -741,6 +741,58 @@ class TextureManager {
             cx.fillStyle = '#000000';
             cx.fillRect(9, 10, 2, 1);
         });
+
+        // 46. MAÇÃ
+        this.criarTextura('maca', (cx) => {
+            // Corpo da maçã (vermelho)
+            cx.fillStyle = '#D32F2F';
+            cx.beginPath(); cx.arc(10, 11, 6, 0, Math.PI*2); cx.fill();
+            cx.fillStyle = '#F44336';
+            cx.beginPath(); cx.arc(9, 10, 4, 0, Math.PI*2); cx.fill();
+            // Brilho
+            cx.fillStyle = '#FFCDD2';
+            cx.fillRect(7, 8, 2, 2);
+            // Talo (marrom)
+            cx.fillStyle = '#5D4037';
+            cx.fillRect(9, 3, 2, 4);
+            // Folhinha (verde)
+            cx.fillStyle = '#4CAF50';
+            cx.fillRect(11, 4, 3, 2);
+        });
+
+        // 47. ARMADURA DE MADEIRA
+        this.criarTextura('armadura_madeira', (cx) => {
+            cx.fillStyle = '#795548'; // Marrom base
+            cx.fillRect(4, 3, 12, 12);
+            cx.fillStyle = '#5D4037'; // Sombra/contorno
+            cx.fillRect(3, 3, 2, 6);
+            cx.fillRect(15, 3, 2, 6);
+            cx.fillRect(4, 2, 12, 2);
+            cx.fillRect(6, 4, 8, 2); // Gola
+            cx.fillStyle = '#8D6E63'; // Detalhe claro
+            cx.fillRect(6, 6, 8, 8);
+            // Listras
+            cx.fillStyle = '#3E2723';
+            cx.fillRect(5, 7, 10, 1);
+            cx.fillRect(5, 11, 10, 1);
+        });
+
+        // 48. ARMADURA DE FERRO
+        this.criarTextura('armadura_ferro', (cx) => {
+            cx.fillStyle = '#9E9E9E'; // Cinza base
+            cx.fillRect(4, 3, 12, 12);
+            cx.fillStyle = '#757575'; // Sombra/contorno
+            cx.fillRect(3, 3, 2, 6);
+            cx.fillRect(15, 3, 2, 6);
+            cx.fillRect(4, 2, 12, 2);
+            cx.fillRect(6, 4, 8, 2); // Gola
+            cx.fillStyle = '#E0E0E0'; // Brilho metálico
+            cx.fillRect(6, 6, 8, 8);
+            // Placas
+            cx.fillStyle = '#616161';
+            cx.fillRect(5, 7, 10, 1);
+            cx.fillRect(5, 11, 10, 1);
+        });
     }
 
     get(id) {

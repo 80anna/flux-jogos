@@ -189,10 +189,15 @@ class PlayerManager {
 
         // Camera updates
         const camera = this.game.camera;
-        camera.x = this.meuJogador.x - this.game.canvas.width / 2 + this.meuJogador.width / 2;
-        camera.y = this.meuJogador.y - this.game.canvas.height / 2 + this.meuJogador.height / 2;
-        camera.x = Math.max(0, Math.min(camera.x, Config.LARGURA_MUNDO * Config.TAM_BLOCO - this.game.canvas.width));
-        camera.y = Math.max(0, Math.min(camera.y, Config.ALTURA_MUNDO * Config.TAM_BLOCO - this.game.canvas.height));
+        let targetX = this.meuJogador.x - this.game.canvas.width / 2 + this.meuJogador.width / 2;
+        let targetY = this.meuJogador.y - this.game.canvas.height / 2 + this.meuJogador.height / 2;
+        
+        targetX = Math.max(0, Math.min(targetX, Config.LARGURA_MUNDO * Config.TAM_BLOCO - this.game.canvas.width));
+        targetY = Math.max(0, Math.min(targetY, Config.ALTURA_MUNDO * Config.TAM_BLOCO - this.game.canvas.height));
+
+        // Smooth camera lerp (10% na direção do alvo a cada frame)
+        camera.x += (targetX - camera.x) * 0.1;
+        camera.y += (targetY - camera.y) * 0.1;
 
         // Network sync
         if (this.game.network.souHost) {
@@ -256,9 +261,27 @@ class PlayerManager {
         ctx.fillRect(0, 24, 6, 2);
         ctx.fillRect(8, 24, 6, 2);
         
-        // 3. TRONCO E BLUSA (Torso & Shirt)
+        // 3. TRONCO E BLUSA (Torso & Shirt) / ARMADURA
         ctx.fillStyle = p.cor;
         ctx.fillRect(1, 8, 12, 9);
+        
+        if (p.armorId) {
+            if (p.armorId === 'armadura_madeira') {
+                ctx.fillStyle = '#795548'; // Peitoral de madeira
+                ctx.fillRect(0, 8, 14, 10);
+                ctx.fillStyle = '#5D4037'; // Sombras
+                ctx.fillRect(0, 8, 2, 10);
+                ctx.fillRect(12, 8, 2, 10);
+            } else if (p.armorId === 'armadura_ferro') {
+                ctx.fillStyle = '#9E9E9E'; // Peitoral de ferro
+                ctx.fillRect(0, 8, 14, 10);
+                ctx.fillStyle = '#757575'; // Sombras
+                ctx.fillRect(0, 8, 2, 10);
+                ctx.fillRect(12, 8, 2, 10);
+                ctx.fillStyle = '#E0E0E0'; // Brilho no peito
+                ctx.fillRect(4, 10, 6, 6);
+            }
+        }
         
         // 4. CABEÇA (Head)
         ctx.fillStyle = '#FFD54F'; 

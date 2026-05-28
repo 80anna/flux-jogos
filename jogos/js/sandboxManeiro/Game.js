@@ -60,10 +60,10 @@ class Game {
 
     configurarInputs() {
         window.addEventListener('keydown', (e) => {
-            if (['a', 'ArrowLeft'].includes(e.key)) this.player.teclas.a = true;
-            if (['d', 'ArrowRight'].includes(e.key)) this.player.teclas.d = true;
-            if (['w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = true;
-            if (['s', 'ArrowDown'].includes(e.key)) this.player.teclas.s = true;
+            if (['A', 'a', 'ArrowLeft'].includes(e.key)) this.player.teclas.a = true;
+            if (['D', 'd', 'ArrowRight'].includes(e.key)) this.player.teclas.d = true;
+            if (['W', 'w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = true;
+            if (['S', 's', 'ArrowDown'].includes(e.key)) this.player.teclas.s = true;
             if (e.key === 'Shift') this.player.teclas.shift = true;
 
             if (e.key >= '0' && e.key <= '9') {
@@ -74,10 +74,10 @@ class Game {
         });
 
         window.addEventListener('keyup', (e) => {
-            if (['a', 'ArrowLeft'].includes(e.key)) this.player.teclas.a = false;
-            if (['d', 'ArrowRight'].includes(e.key)) this.player.teclas.d = false;
-            if (['w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = false;
-            if (['s', 'ArrowDown'].includes(e.key)) this.player.teclas.s = false;
+            if (['A', 'a', 'ArrowLeft'].includes(e.key)) this.player.teclas.a = false;
+            if (['D', 'd', 'ArrowRight'].includes(e.key)) this.player.teclas.d = false;
+            if (['W', 'w', 'ArrowUp', ' '].includes(e.key)) this.player.teclas.w = false;
+            if (['S', 's', 'ArrowDown'].includes(e.key)) this.player.teclas.s = false;
             if (e.key === 'Shift') this.player.teclas.shift = false;
         });
 
@@ -259,6 +259,7 @@ class Game {
             if (e.button === 2 && (ehPorta || ehPortaTopo)) {
                 let novoBloco = blocoAlvo === 'porta' ? 'porta_aberta' : 'porta';
                 this.world.mundo[portaX][portaY] = novoBloco;
+                this.world.atualizarLuzArea(portaX, portaY);
 
                 SoundEffects.play('door');
 
@@ -275,6 +276,38 @@ class Game {
             if (e.button === 2 && blocoAlvo === 'bau') {
                 this.inventory.abrirBau(portaX, portaY);
                 return;
+            }
+
+            // Consumo de itens e Equipamento de Armadura (clique com botão direito)
+            if (e.button === 2) {
+                let itemSelecionado = this.inventory.getItemSelecionado();
+                if (itemSelecionado) {
+                    let idItem = itemSelecionado.id;
+                    let itemAtributos = Config.ATRIBUTOS_ITENS[idItem];
+                    if (itemAtributos) {
+                        if (itemAtributos.tipo === 'cura' && this.player.meuJogador.vida < 100) {
+                            this.player.meuJogador.vida = Math.min(100, this.player.meuJogador.vida + itemAtributos.cura);
+                            this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
+                            SoundEffects.play('collect'); 
+                            return;
+                        } else if (itemAtributos.tipo === 'armadura') {
+                            let oldArmorId = this.player.meuJogador.armorId;
+                            this.player.meuJogador.armorId = idItem;
+                            this.player.meuJogador.armorDefesa = itemAtributos.defesa;
+                            
+                            this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
+                            if (oldArmorId) {
+                                if (!this.inventory.adicionarAoInventario(oldArmorId, 1)) {
+                                    let px = Math.floor(this.player.meuJogador.x / Config.TAM_BLOCO);
+                                    let py = Math.floor(this.player.meuJogador.y / Config.TAM_BLOCO);
+                                    this.world.criarDrop(px, py, oldArmorId);
+                                }
+                            }
+                            SoundEffects.play('collect');
+                            return;
+                        }
+                    }
+                }
             }
 
             let quebrando = e.button != 2;
@@ -343,6 +376,7 @@ class Game {
 
                         // Quebra plantas e decorações flutuantes diretamente acima
                         this.world.verificarQuebraPlantaAcima(portaX, portaY);
+                        this.world.atualizarLuzArea(portaX, portaY);
                     }
                 }
             } else if (!quebrando && blocoAlvo === 0 && idItem && Config.REGISTRO_BLOCOS[idItem]) {
@@ -370,6 +404,7 @@ class Game {
                 this.player.triggerSwing();
 
                 this.world.mundo[gridX][gridY] = idItem;
+                this.world.atualizarLuzArea(gridX, gridY);
                 SoundEffects.play('place_block');
 
                 // Se o jogador colocou madeira, registra como madeira de construção colocada
@@ -380,7 +415,7 @@ class Game {
                 // Se plantou muda e eu for host
                 if (idItem === 'muda' && this.network.souHost) {
                     this.world.mudasPlantadas = this.world.mudasPlantadas || {};
-                    this.world.mudasPlantadas[chave] = this.tempoMinutos;
+                    this.world.mudasPlantadas[chave] = Date.now();
                 }
                 
                 // Se colocou baú
@@ -770,71 +805,8 @@ class Game {
     }
 
     calcularEscuridaoBloco(x, y) {
-        const bloco = this.world.mundo[x] ? this.world.mundo[x][y] : 0;
-        if (bloco === 'tocha' || bloco === 'vidro') return 0;
-
-        // 1. Procura por luz natural (dia) vindo de colunas abertas para o céu nos lados e em cima (raio de 5)
-        let maiorLuzDia = 0;
-        const raioLuz = 5;
-        const inicioX = Math.max(0, x - raioLuz);
-        const fimX = Math.min(Config.LARGURA_MUNDO - 1, x + raioLuz);
-        const inicioY = Math.max(0, y - raioLuz);
-        const fimY = Math.min(Config.ALTURA_MUNDO - 1, y + raioLuz);
-
-        for (let tx = inicioX; tx <= fimX; tx++) {
-            if (!this.world.mundo[tx]) continue;
-
-            // Encontra a altura do primeiro bloco sólido que bloqueia a luz do sol nesta coluna
-            let yPrimeiroSolido = 0;
-            while (yPrimeiroSolido < Config.ALTURA_MUNDO) {
-                let b = this.world.mundo[tx][yPrimeiroSolido];
-                if (b !== 0 && b !== 'vidro' && Config.REGISTRO_BLOCOS[b] && Config.REGISTRO_BLOCOS[b].colisao) {
-                    break;
-                }
-                yPrimeiroSolido++;
-            }
-
-            for (let ty = inicioY; ty <= fimY; ty++) {
-                // Se ty estiver acima do primeiro bloco sólido, esse bloco (tx, ty) está exposto ao céu
-                if (ty <= yPrimeiroSolido) {
-                    let dist = Math.abs(x - tx) + Math.abs(y - ty);
-                    if (dist <= raioLuz) {
-                        let luz = 1.0 - (dist / (raioLuz + 1));
-                        if (luz > maiorLuzDia) {
-                            maiorLuzDia = luz;
-                        }
-                    }
-                }
-            }
-        }
-
-        let d = 0.95 * (1.0 - maiorLuzDia);
-        if (d <= 0.01) return 0;
-
-        // 2. Procura por tochas próximas para iluminar o local (raio de 5 blocos)
-        let maiorLuzTocha = 0;
-        const raioTocha = 8;
-        const inicioBuscaX = Math.max(0, x - raioTocha);
-        const fimBuscaX = Math.min(Config.LARGURA_MUNDO - 1, x + raioTocha);
-        const inicioBuscaY = Math.max(0, y - raioTocha);
-        const fimBuscaY = Math.min(Config.ALTURA_MUNDO - 1, y + raioTocha);
-
-        for (let tx = inicioBuscaX; tx <= fimBuscaX; tx++) {
-            for (let ty = inicioBuscaY; ty <= fimBuscaY; ty++) {
-                if (this.world.mundo[tx] && this.world.mundo[tx][ty] === 'tocha') {
-                    // Usa distância Euclidiana para fazer a luz ser circular em vez de um losango
-                    let dist = Math.sqrt(Math.pow(x - tx, 2) + Math.pow(y - ty, 2));
-                    if (dist <= raioTocha) {
-                        let luz = 1.0 - (dist / (raioTocha + 1));
-                        if (luz > maiorLuzTocha) {
-                            maiorLuzTocha = luz;
-                        }
-                    }
-                }
-            }
-        }
-
-        return Math.max(0, d * (1.0 - maiorLuzTocha));
+        if (!this.world.luzMap || !this.world.luzMap[x]) return 0;
+        return this.world.luzMap[x][y];
     }
 
     desenhar() {
@@ -858,7 +830,12 @@ class Game {
                             if (bloco === 'porta' || bloco === 'porta_aberta') {
                                 this.ctx.drawImage(tex, x * Config.TAM_BLOCO, (y - 1) * Config.TAM_BLOCO, Config.TAM_BLOCO, Config.TAM_BLOCO * 2);
                             } else {
-                                this.ctx.drawImage(tex, x * Config.TAM_BLOCO, y * Config.TAM_BLOCO);
+                                let xRender = x * Config.TAM_BLOCO;
+                                // Efeito de vento suave nas plantas
+                                if (bloco === 'folha' || bloco === 'folha_selva' || bloco === 'folha_pinheiro' || bloco === 'grama_alta' || bloco === 'arbusto' || bloco === 'flor_vermelha' || bloco === 'flor_amarela') {
+                                    xRender += Math.sin(Date.now() / 800 + x * 0.5 + y * 0.2) * 3;
+                                }
+                                this.ctx.drawImage(tex, xRender, y * Config.TAM_BLOCO);
                             }
                         }
                     }
@@ -1257,6 +1234,37 @@ class Game {
             }
             this.ctx.fill();
         }
+
+        // ==================== 3. HUD DE ARMADURA ====================
+        if (this.player.meuJogador.armorId) {
+            const armorY = 120;
+            const armorDef = this.player.meuJogador.armorDefesa || 0;
+            const armorTex = this.textures.get(this.player.meuJogador.armorId);
+            
+            // Fundo escuro
+            this.ctx.fillStyle = 'rgba(15, 15, 25, 0.65)';
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            if (this.ctx.roundRect) {
+                this.ctx.roundRect(barX, armorY, 120, 36, 8);
+            } else {
+                this.ctx.rect(barX, armorY, 120, 36);
+            }
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Desenha icone
+            if (armorTex) {
+                this.ctx.drawImage(armorTex, barX + 8, armorY + 8, 20, 20);
+            }
+
+            // Desenha Defesa
+            this.ctx.fillStyle = '#E0E0E0';
+            this.ctx.font = 'bold 16px "Outfit", sans-serif';
+            this.ctx.fillText(`Defesa: ${armorDef}`, barX + 35, armorY + 24);
+        }
+
         this.ctx.restore();
     }
 }

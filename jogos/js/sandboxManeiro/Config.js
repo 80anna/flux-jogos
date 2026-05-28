@@ -61,7 +61,10 @@ class Config {
         'espada_cobre': { tipo: 'espada', dano: 15 },
         'picareta_ferro': { tipo: 'picareta', forca: 15 },
         'espada_ferro': { tipo: 'espada', dano: 20 },
-        'bandaid': { tipo: 'cura', cura: 20 }
+        'bandaid': { tipo: 'cura', cura: 20 },
+        'maca': { tipo: 'cura', cura: 15 },
+        'armadura_madeira': { tipo: 'armadura', defesa: 5 },
+        'armadura_ferro': { tipo: 'armadura', defesa: 12 }
     };
 
     static MUSICAS = {
@@ -76,7 +79,7 @@ class Config {
         { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas (Selva)', reqs: [{ id: 'madeira_selva', qtd: 1, label: '1 Mad. Selva' }] },
         { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas (Pinheiro)', reqs: [{ id: 'madeira_pinheiro', qtd: 1, label: '1 Mad. Pinheiro' }] },
         { resultado: 'tijolo_pedra', qtdResultado: 4, label: '4 Tijolos', reqs: [{ id: 'pedra', qtd: 4, label: '4 Pedras' }] },
-        { resultado: 'vidro', qtdResultado: 1, label: '1 Vidro', reqs: [{ id: 'areia', qtd: 2, label: '1 Areia' }] },
+        { resultado: 'vidro', qtdResultado: 1, label: '1 Vidro', reqs: [{ id: 'areia', qtd: 2, label: '2 Areias' }] },
         { resultado: 'gelo', qtdResultado: 1, label: '1 Gelo', reqs: [{ id: 'neve', qtd: 4, label: '4 Neves' }] },
         { resultado: 'tocha', qtdResultado: 4, label: '4 Tochas', reqs: [{ id: 'carvao', qtd: 1, label: '1 Carvão' }, { id: 'tabua', qtd: 1, label: '1 Tábua' }] },
         { resultado: 'tocha', qtdResultado: 4, label: '4 Tochas (Gel)', reqs: [{ id: 'gel', qtd: 1, label: '1 Gel' }, { id: 'tabua', qtd: 1, label: '1 Tábua' }] },
@@ -87,7 +90,9 @@ class Config {
         { resultado: 'bandaid', qtdResultado: 1, label: '1 Bandaid', reqs: [{ id: 'folha', qtd: 4, label: '4 Folhas' }, { id: 'gel', qtd: 2, label: '2 Geis' }] },
         { resultado: 'espada_ferro', qtdResultado: 1, label: '1 Espada de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] },
         { resultado: 'picareta_ferro', qtdResultado: 1, label: '1 Picareta de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] },
-        { resultado: 'bau', qtdResultado: 1, label: '1 Baú', reqs: [{ id: 'tabua', qtd: 20, label: '20 Tábuas' }] }
+        { resultado: 'bau', qtdResultado: 1, label: '1 Baú', reqs: [{ id: 'tabua', qtd: 20, label: '20 Tábuas' }] },
+        { resultado: 'armadura_madeira', qtdResultado: 1, label: '1 Armad. de Madeira', reqs: [{ id: 'tabua', qtd: 20, label: '20 Tábuas' }] },
+        { resultado: 'armadura_ferro', qtdResultado: 1, label: '1 Armad. de Ferro', reqs: [{ id: 'ferro', qtd: 20, label: '20 Ferros' }] }
     ];
 }
 // Vincula ao escopo global explicitamente

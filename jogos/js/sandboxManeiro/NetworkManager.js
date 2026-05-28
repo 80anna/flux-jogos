@@ -43,6 +43,7 @@ class NetworkManager {
     criarServidor() {
         this.souHost = true;
         this.game.world.gerarMundo();
+        this.game.world.inicializarIluminacao();
 
         let centroX = Math.floor(Config.LARGURA_MUNDO / 2);
         for (let y = 0; y < Config.ALTURA_MUNDO; y++) {
@@ -121,6 +122,7 @@ class NetworkManager {
                 this.game.player.meuJogador.y = this.game.player.jogadores[keys[0]].y - 40;
             }
             this.game.player.jogadores[this.meuId] = this.game.player.meuJogador;
+            this.game.world.inicializarIluminacao();
             this.game.loopJogo();
         }
         if (dados.tipo === 'ATUALIZAR_TEMPO') {
@@ -152,8 +154,10 @@ class NetworkManager {
 
                 if (dados.idBloco === 'muda' && this.souHost) {
                     this.game.world.mudasPlantadas = this.game.world.mudasPlantadas || {};
-                    this.game.world.mudasPlantadas[chave] = this.game.tempoMinutos;
+                    this.game.world.mudasPlantadas[chave] = Date.now();
                 }
+                
+                this.game.world.atualizarLuzArea(dados.x, dados.y);
             }
             if (this.souHost) this.transmitir(dados);
         }

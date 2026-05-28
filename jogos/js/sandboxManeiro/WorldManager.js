@@ -17,6 +17,12 @@ class WorldManager {
         }
         this.madeiraColocada = new Set();
         this.baus = {}; // { 'x,y': [null, ... 25 itens] }
+
+        this.luzMap = [];
+        this.mapaAlturaSolida = [];
+        for (let x = 0; x < Config.LARGURA_MUNDO; x++) {
+            this.luzMap[x] = new Float32Array(Config.ALTURA_MUNDO);
+        }
     }
 
     gerarMundo() {
@@ -192,12 +198,23 @@ class WorldManager {
 
             if (biomaAtual === 'floresta') {
                 if (Math.random() < 0.1) {
-                    let h = 5 + Math.floor(Math.random() * 5); // Árvores mais altas
-                    for (let t = 1; t <= h; t++) this.mundo[x][y - t] = 'madeira';
-                    let topo = y - h;
-                    this.mundo[x][topo] = 'folha'; this.mundo[x-1][topo] = 'folha'; this.mundo[x+1][topo] = 'folha';
-                    this.mundo[x][topo-1] = 'folha'; this.mundo[x-1][topo-1] = 'folha'; this.mundo[x+1][topo-1] = 'folha';
-                    this.mundo[x][topo-2] = 'folha';
+                    let alturaTronco = 10 + Math.floor(Math.random() * 10);
+                    let raioCopaBase = 4;
+                    for (let t = 1; t <= alturaTronco; t++) this.mundo[x][y - t] = 'madeira';
+                    let topoY = y - alturaTronco;
+                    for (let fx = -raioCopaBase; fx <= raioCopaBase; fx++) {
+                        for (let fy = -raioCopaBase; fy <= raioCopaBase; fy++) {
+                            if (fx * fx + fy * fy <= raioCopaBase * raioCopaBase) {
+                                let fxx = x + fx;
+                                let fyy = topoY + fy;
+                                if (this.mundo[fxx] && fyy >= 0 && fyy < Config.ALTURA_MUNDO) {
+                                    if (this.mundo[fxx][fyy] === 0) {
+                                        this.mundo[fxx][fyy] = 'folha';
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
                     let r = Math.random();
                     if (r < 0.20) this.mundo[x][y - 1] = 'grama_alta';
@@ -250,10 +267,114 @@ class WorldManager {
         }
     }
 
+    inicializarIluminacao() {
+        // Pre-calcula a altura sólida para o céu em todo o mundo
+        for (let x = 0; x < Config.LARGURA_MUNDO; x++) {
+            this.recalcularAlturaSolida(x);
+        }
+        // Calcula a luz inicial de cada bloco
+        for (let x = 0; x < Config.LARGURA_MUNDO; x++) {
+            for (let y = 0; y < Config.ALTURA_MUNDO; y++) {
+                this.luzMap[x][y] = this.calcularLuz(x, y);
+            }
+        }
+    }
+
+    recalcularAlturaSolida(x) {
+        if (!this.mundo[x]) return;
+        let yPrimeiroSolido = 0;
+        while (yPrimeiroSolido < Config.ALTURA_MUNDO) {
+            let b = this.mundo[x][yPrimeiroSolido];
+            if (b !== 0 && b !== 'vidro' && Config.REGISTRO_BLOCOS[b] && Config.REGISTRO_BLOCOS[b].colisao) {
+                break;
+            }
+            yPrimeiroSolido++;
+        }
+        this.mapaAlturaSolida[x] = yPrimeiroSolido;
+    }
+
+    calcularLuz(x, y) {
+        const bloco = this.mundo[x] ? this.mundo[x][y] : 0;
+        if (bloco === 'tocha' || bloco === 'vidro') return 0;
+
+        let maiorLuzDia = 0;
+        const raioLuz = 5;
+        const inicioX = Math.max(0, x - raioLuz);
+        const fimX = Math.min(Config.LARGURA_MUNDO - 1, x + raioLuz);
+        const inicioY = Math.max(0, y - raioLuz);
+        const fimY = Math.min(Config.ALTURA_MUNDO - 1, y + raioLuz);
+
+        for (let tx = inicioX; tx <= fimX; tx++) {
+            let yPrimeiroSolido = this.mapaAlturaSolida[tx];
+            for (let ty = inicioY; ty <= fimY; ty++) {
+                if (ty <= yPrimeiroSolido) {
+                    let dist = Math.abs(x - tx) + Math.abs(y - ty);
+                    if (dist <= raioLuz) {
+                        let luz = 1.0 - (dist / (raioLuz + 1));
+                        if (luz > maiorLuzDia) maiorLuzDia = luz;
+                    }
+                }
+            }
+        }
+
+        let d = 0.95 * (1.0 - maiorLuzDia);
+        if (d <= 0.01) return 0;
+
+        let maiorLuzTocha = 0;
+        const raioTocha = 8;
+        const inicioBuscaX = Math.max(0, x - raioTocha);
+        const fimBuscaX = Math.min(Config.LARGURA_MUNDO - 1, x + raioTocha);
+        const inicioBuscaY = Math.max(0, y - raioTocha);
+        const fimBuscaY = Math.min(Config.ALTURA_MUNDO - 1, y + raioTocha);
+
+        for (let tx = inicioBuscaX; tx <= fimBuscaX; tx++) {
+            for (let ty = inicioBuscaY; ty <= fimBuscaY; ty++) {
+                if (this.mundo[tx] && this.mundo[tx][ty] === 'tocha') {
+                    let dist = Math.sqrt(Math.pow(x - tx, 2) + Math.pow(y - ty, 2));
+                    if (dist <= raioTocha) {
+                        let luz = 1.0 - (dist / (raioTocha + 1));
+                        if (luz > maiorLuzTocha) maiorLuzTocha = luz;
+                    }
+                }
+            }
+        }
+
+        return Math.max(0, d * (1.0 - maiorLuzTocha));
+    }
+
+    atualizarLuzArea(centroX, centroY) {
+        // Ao modificar um bloco, o mapa de altura daquela coluna pode ter mudado
+        this.recalcularAlturaSolida(centroX);
+
+        // Atualiza blocos que dependem do sol ou da tocha no raio de 8 blocos em volta da alteração
+        const raio = 8;
+        const inicioX = Math.max(0, centroX - raio);
+        const fimX = Math.min(Config.LARGURA_MUNDO - 1, centroX + raio);
+        const inicioY = Math.max(0, centroY - raio);
+        const fimY = Math.min(Config.ALTURA_MUNDO - 1, centroY + raio);
+
+        for (let x = inicioX; x <= fimX; x++) {
+            for (let y = inicioY; y <= fimY; y++) {
+                this.luzMap[x][y] = this.calcularLuz(x, y);
+            }
+        }
+    }
+
     criarDrop(x, y, tipo) {
         let tipoDrop = tipo;
         if (tipo === 'minerio_carvao') tipoDrop = 'carvao';
         if (tipo === 'minerio_ferro') tipoDrop = 'ferro';
+
+        if (tipo === 'folha' || tipo === 'folha_selva' || tipo === 'folha_pinheiro') {
+            let rnd = Math.random();
+            if (rnd <= 0.20) {
+                tipoDrop = 'muda';
+            } else if (rnd <= 0.25) {
+                tipoDrop = 'maca';
+            } else {
+                return; // Folhas não dropam a si mesmas
+            }
+        }
 
         const idDrop = Math.random().toString(36).substr(2, 9);
         const offset = Config.TAM_BLOCO / 4;
@@ -613,8 +734,9 @@ class WorldManager {
             
             if (overlapX && overlapY) {
                 if (player.invulTimer === 0) {
-                    // Causa dano
-                    player.vida = Math.max(0, player.vida - enemy.dano);
+                    // Causa dano com redução da armadura
+                    let danoReal = Math.max(1, enemy.dano - (player.armorDefesa || 0));
+                    player.vida = Math.max(0, player.vida - danoReal);
                     player.invulTimer = 60; // 1 segundo de invulnerabilidade
                     SoundEffects.play('hit_player');
                     
