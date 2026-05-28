@@ -42,6 +42,13 @@
         
         <div id="jogo-container">
             <canvas id="jogo" width="1440" height="810"></canvas>
+            <div id="painel-bau" style="display:none;">
+                <div id="bau-header">
+                    <span>Baú</span>
+                    <button id="btn-fechar-bau" onclick="window.game.inventory.fecharBau()">X</button>
+                </div>
+                <div id="grid-bau"></div>
+            </div>
         </div>
 
         <div id="painel-crafting">

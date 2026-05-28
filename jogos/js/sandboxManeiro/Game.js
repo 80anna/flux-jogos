@@ -139,25 +139,23 @@ class Game {
             // Sempre faz o movimento visual de swing ao atacar
             this.player.triggerSwing();
 
-            // Aplica cooldown de 35 frames (~0.58 segundos)
-            this.player.cooldownAtaque = 15;
+            this.player.cooldownAtaque = 10;
 
             // Rotaciona instantaneamente o olhar do jogador para a direção da mira do mouse ao bater
             const atacandoParaDireita = mouseX >= centroJogadorX;
             this.player.meuJogador.facingRight = atacandoParaDireita;
 
-            // Determina o dano e o raio do arco de ataque dependendo da arma
             let dano = 1;
-            let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
+            let raioAtaque = 36;
             if (idItem === 'espada_cobre') {
-                dano = 8;
-                raioAtaque = 60; // Espada de Cobre (2.5 blocos de alcance!)
+                dano = 10;
+                raioAtaque = 70;
             } else if (idItem === 'picareta_cobre') {
                 dano = 3;
-                raioAtaque = 48; // Picareta de Cobre (2.0 blocos)
+                raioAtaque = 48;
             } else if (idItem === 'espada_ferro') {
-                dano = 13; // +5 comparado a cobre (a arma causará dps muito forte somado com a base)
-                raioAtaque = 65; // Ligeiramente maior alcance
+                dano = 15;
+                raioAtaque = 80;
             } else if (idItem === 'picareta_ferro') {
                 dano = 5;
                 raioAtaque = 52;
@@ -181,13 +179,11 @@ class Game {
             SoundEffects.play('hit_enemy');
             // Aplica dano, knockback e partículas em todos os inimigos atingidos na meia lua
             inimigosAtingidos.forEach(({ enemy, idx, dano, centroInimigoX, centroInimigoY }) => {
-                enemy.vida -= dano;
-
-                // Aplica knockback arremessando na direção oposta ao jogador
+                // Aplica knockback (predição visual)
                 enemy.vx = (enemy.x > this.player.meuJogador.x) ? 6 : -6;
                 enemy.vy = -3.5;
 
-                // Partículas de dano do inimigo
+                // Partículas de dano (efeito visual)
                 let corParticula = enemy.tipo === 'slime_azul' ? '#2196F3' : '#3E2723';
                 for (let p = 0; p < 8; p++) {
                     this.particulas.push({
@@ -201,26 +197,35 @@ class Game {
                     });
                 }
 
-                // Verifica se o inimigo morreu
-                if (enemy.vida <= 0) {
-                    let dropGridX = Math.floor(centroInimigoX / Config.TAM_BLOCO);
-                    let dropGridY = Math.floor(centroInimigoY / Config.TAM_BLOCO);
-                    this.world.criarDrop(dropGridX, dropGridY, enemy.dropItem);
+                if (this.network.souHost) {
+                    enemy.vida -= dano;
+                    if (enemy.vida <= 0) {
+                        let dropGridX = Math.floor(centroInimigoX / Config.TAM_BLOCO);
+                        let dropGridY = Math.floor(centroInimigoY / Config.TAM_BLOCO);
+                        this.world.criarDrop(dropGridX, dropGridY, enemy.dropItem);
 
-                    // Partículas explosivas da morte
-                    for (let p = 0; p < 15; p++) {
-                        this.particulas.push({
-                            x: centroInimigoX,
-                            y: centroInimigoY,
-                            vx: (Math.random() - 0.5) * 7,
-                            vy: (Math.random() - 0.5) * 7 - 2,
-                            cor: corParticula,
-                            tamanho: 3 + Math.random() * 3,
-                            vida: 25 + Math.random() * 20
-                        });
+                        // Partículas explosivas da morte
+                        for (let p = 0; p < 15; p++) {
+                            this.particulas.push({
+                                x: centroInimigoX,
+                                y: centroInimigoY,
+                                vx: (Math.random() - 0.5) * 7,
+                                vy: (Math.random() - 0.5) * 7 - 2,
+                                cor: corParticula,
+                                tamanho: 3 + Math.random() * 3,
+                                vida: 25 + Math.random() * 20
+                            });
+                        }
+                        this.world.inimigos.splice(idx, 1);
                     }
-
-                    this.world.inimigos.splice(idx, 1);
+                } else if (this.network.conexaoCliente) {
+                    this.network.conexaoCliente.send({
+                        tipo: 'DANO_INIMIGO',
+                        indexInimigo: idx,
+                        dano: dano,
+                        x: centroInimigoX,
+                        y: centroInimigoY
+                    });
                 }
             });
             return; // Cancela a mineração de blocos ao lutar
@@ -266,6 +271,12 @@ class Game {
                 return;
             }
 
+            // Interação com baú (clique com botão direito para abrir)
+            if (e.button === 2 && blocoAlvo === 'bau') {
+                this.inventory.abrirBau(portaX, portaY);
+                return;
+            }
+
             let quebrando = e.button != 2;
 
             let itemSelecionado = this.inventory.getItemSelecionado();
@@ -303,6 +314,23 @@ class Game {
                         this.world.criarDrop(portaX, portaY, blocoAlvo);
                         this.world.mundo[portaX][portaY] = 0;
 
+                        if (blocoAlvo === 'bau') {
+                            let inventarioBau = this.world.baus[chave];
+                            if (inventarioBau) {
+                                inventarioBau.forEach(item => {
+                                    if (item) {
+                                        for (let i = 0; i < item.quantidade; i++) {
+                                            this.world.criarDrop(portaX, portaY, item.id);
+                                        }
+                                    }
+                                });
+                            }
+                            delete this.world.baus[chave];
+                            if (this.inventory.bauAbertoChave === chave) {
+                                this.inventory.fecharBau();
+                            }
+                        }
+
                         // Remove do conjunto de madeira colocada
                         this.world.madeiraColocada.delete(chave);
 
@@ -330,6 +358,13 @@ class Game {
                         return;
                     }
                 }
+                
+                // Muda de árvore precisa de grama abaixo
+                if (idItem === 'muda') {
+                    if (blocoAbaixo !== 'grama') {
+                        return;
+                    }
+                }
 
                 // Ativa animação local de swing para colocação
                 this.player.triggerSwing();
@@ -340,6 +375,17 @@ class Game {
                 // Se o jogador colocou madeira, registra como madeira de construção colocada
                 if (idItem === 'madeira' || idItem === 'madeira_selva' || idItem === 'madeira_pinheiro') {
                     this.world.madeiraColocada.add(chave);
+                }
+                
+                // Se plantou muda e eu for host
+                if (idItem === 'muda' && this.network.souHost) {
+                    this.world.mudasPlantadas = this.world.mudasPlantadas || {};
+                    this.world.mudasPlantadas[chave] = this.tempoMinutos;
+                }
+                
+                // Se colocou baú
+                if (idItem === 'bau') {
+                    this.world.baus[chave] = new Array(25).fill(null);
                 }
 
                 this.inventory.removerDoInventario(this.inventory.slotSelecionado, 1);
@@ -463,6 +509,7 @@ class Game {
 
             this.world.spawnInimigos();
             this.world.atualizarInimigos();
+            this.world.atualizarMudas(); // Checa crescimento de mudas
             this.network.transmitir({ tipo: 'ATUALIZAR_INIMIGOS', inimigos: this.world.inimigos });
         }
 
@@ -766,7 +813,7 @@ class Game {
 
         // 2. Procura por tochas próximas para iluminar o local (raio de 5 blocos)
         let maiorLuzTocha = 0;
-        const raioTocha = 5;
+        const raioTocha = 8;
         const inicioBuscaX = Math.max(0, x - raioTocha);
         const fimBuscaX = Math.min(Config.LARGURA_MUNDO - 1, x + raioTocha);
         const inicioBuscaY = Math.max(0, y - raioTocha);
@@ -775,7 +822,8 @@ class Game {
         for (let tx = inicioBuscaX; tx <= fimBuscaX; tx++) {
             for (let ty = inicioBuscaY; ty <= fimBuscaY; ty++) {
                 if (this.world.mundo[tx] && this.world.mundo[tx][ty] === 'tocha') {
-                    let dist = Math.abs(x - tx) + Math.abs(y - ty);
+                    // Usa distância Euclidiana para fazer a luz ser circular em vez de um losango
+                    let dist = Math.sqrt(Math.pow(x - tx, 2) + Math.pow(y - ty, 2));
                     if (dist <= raioTocha) {
                         let luz = 1.0 - (dist / (raioTocha + 1));
                         if (luz > maiorLuzTocha) {
@@ -850,9 +898,9 @@ class Game {
         let itemSelecionado = this.inventory.getItemSelecionado();
         let idItem = itemSelecionado ? itemSelecionado.id : null;
         let raioAtaque = 36; // Mão nua / Outros (1.5 blocos)
-        if (idItem === 'espada_cobre') raioAtaque = 60;
+        if (idItem === 'espada_cobre') raioAtaque = 70;
         else if (idItem === 'picareta_cobre') raioAtaque = 48;
-        else if (idItem === 'espada_ferro') raioAtaque = 65;
+        else if (idItem === 'espada_ferro') raioAtaque = 80;
         else if (idItem === 'picareta_ferro') raioAtaque = 52;
 
         let startAngle = 0;

@@ -706,6 +706,41 @@ class TextureManager {
             cx.lineTo(18, 8);
             cx.fill();
         });
+
+        // 44. MUDA (SAPLING)
+        this.criarTextura('muda', (cx) => {
+            // Caule fininho
+            cx.fillStyle = '#8D6E63';
+            cx.fillRect(9, 12, 2, 8);
+            // Folhinhas
+            cx.fillStyle = '#4CAF50';
+            cx.fillRect(6, 8, 8, 4);
+            cx.fillRect(8, 6, 4, 2);
+            // Detalhe sombra folhas
+            cx.fillStyle = '#388E3C';
+            cx.fillRect(7, 10, 6, 2);
+        });
+
+        // 45. BAÚ (CHEST)
+        this.criarTextura('bau', (cx) => {
+            // Fundo madeira
+            cx.fillStyle = '#795548';
+            cx.fillRect(2, 4, 16, 16);
+            // Borda escura
+            cx.fillStyle = '#3E2723';
+            cx.fillRect(2, 4, 16, 2);
+            cx.fillRect(2, 18, 16, 2);
+            cx.fillRect(2, 4, 2, 16);
+            cx.fillRect(16, 4, 2, 16);
+            // Linha divisória da tampa
+            cx.fillStyle = '#3E2723';
+            cx.fillRect(4, 10, 12, 1);
+            // Fechadura prata
+            cx.fillStyle = '#BDBDBD';
+            cx.fillRect(8, 9, 4, 3);
+            cx.fillStyle = '#000000';
+            cx.fillRect(9, 10, 2, 1);
+        });
     }
 
     get(id) {

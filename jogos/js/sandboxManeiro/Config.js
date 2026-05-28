@@ -40,6 +40,7 @@ class Config {
         'arbusto_seco': { colisao: false, resistencia: 10 },
         'bambu': { colisao: false, resistencia: 10 },
         'arbusto_florido': { colisao: false, resistencia: 10 },
+        'muda': { colisao: false, resistencia: 5 },
         // Blocos novos
         'minerio_carvao': { colisao: true, resistencia: 30 },
         'minerio_ferro': { colisao: true, resistencia: 40 },
@@ -50,6 +51,7 @@ class Config {
         'porta': { colisao: true, resistencia: 5 },
         'porta_aberta': { colisao: false, resistencia: 5 },
         'plataforma_madeira': { colisao: false, resistencia: 5 },
+        'bau': { colisao: true, resistencia: 15 },
         'lama': { colisao: true, resistencia: 15 },
         'granito': { colisao: true, resistencia: 30 }
     };
@@ -71,6 +73,8 @@ class Config {
 
     static RECEITAS = [
         { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas', reqs: [{ id: 'madeira', qtd: 1, label: '1 Madeira' }] },
+        { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas (Selva)', reqs: [{ id: 'madeira_selva', qtd: 1, label: '1 Mad. Selva' }] },
+        { resultado: 'tabua', qtdResultado: 4, label: '4 Tábuas (Pinheiro)', reqs: [{ id: 'madeira_pinheiro', qtd: 1, label: '1 Mad. Pinheiro' }] },
         { resultado: 'tijolo_pedra', qtdResultado: 4, label: '4 Tijolos', reqs: [{ id: 'pedra', qtd: 4, label: '4 Pedras' }] },
         { resultado: 'vidro', qtdResultado: 1, label: '1 Vidro', reqs: [{ id: 'areia', qtd: 2, label: '1 Areia' }] },
         { resultado: 'gelo', qtdResultado: 1, label: '1 Gelo', reqs: [{ id: 'neve', qtd: 4, label: '4 Neves' }] },
@@ -82,7 +86,8 @@ class Config {
         { resultado: 'plataforma_madeira', qtdResultado: 4, label: '4 Plataformas', reqs: [{ id: 'tabua', qtd: 2, label: '2 Tábuas' }] },
         { resultado: 'bandaid', qtdResultado: 1, label: '1 Bandaid', reqs: [{ id: 'folha', qtd: 4, label: '4 Folhas' }, { id: 'gel', qtd: 2, label: '2 Geis' }] },
         { resultado: 'espada_ferro', qtdResultado: 1, label: '1 Espada de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] },
-        { resultado: 'picareta_ferro', qtdResultado: 1, label: '1 Picareta de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] }
+        { resultado: 'picareta_ferro', qtdResultado: 1, label: '1 Picareta de Ferro', reqs: [{ id: 'ferro', qtd: 10, label: '10 Ferros' }, { id: 'tabua', qtd: 5, label: '5 Tábuas' }] },
+        { resultado: 'bau', qtdResultado: 1, label: '1 Baú', reqs: [{ id: 'tabua', qtd: 20, label: '20 Tábuas' }] }
     ];
 }
 // Vincula ao escopo global explicitamente

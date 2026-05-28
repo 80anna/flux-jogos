@@ -67,7 +67,9 @@ class NetworkManager {
                     jogadores: this.game.player.jogadores, 
                     drops: this.game.world.drops,
                     tempoMinutos: this.game.tempoMinutos,
-                    inimigos: this.game.world.inimigos
+                    inimigos: this.game.world.inimigos,
+                    baus: this.game.world.baus,
+                    mudasPlantadas: this.game.world.mudasPlantadas
                 });
                 document.getElementById('qtd-jogadores').innerText = this.conexoesHost.length + 1;
             });
@@ -111,6 +113,8 @@ class NetworkManager {
             this.game.world.drops = dados.drops || {};
             if (dados.tempoMinutos !== undefined) this.game.tempoMinutos = dados.tempoMinutos;
             if (dados.inimigos !== undefined) this.game.world.inimigos = dados.inimigos;
+            if (dados.baus !== undefined) this.game.world.baus = dados.baus;
+            if (dados.mudasPlantadas !== undefined) this.game.world.mudasPlantadas = dados.mudasPlantadas;
             const keys = Object.keys(this.game.player.jogadores);
             if (keys.length > 0) {
                 this.game.player.meuJogador.x = this.game.player.jogadores[keys[0]].x;
@@ -145,6 +149,11 @@ class NetworkManager {
                 } else {
                     this.game.world.madeiraColocada.delete(chave);
                 }
+
+                if (dados.idBloco === 'muda' && this.souHost) {
+                    this.game.world.mudasPlantadas = this.game.world.mudasPlantadas || {};
+                    this.game.world.mudasPlantadas[chave] = this.game.tempoMinutos;
+                }
             }
             if (this.souHost) this.transmitir(dados);
         }
@@ -155,6 +164,31 @@ class NetworkManager {
         if (dados.tipo === 'REMOVER_DROP') {
             delete this.game.world.drops[dados.idDrop];
             if (this.souHost) this.transmitir(dados);
+        }
+        if (dados.tipo === 'DANO_INIMIGO' && this.souHost) {
+            let enemy = this.game.world.inimigos[dados.indexInimigo];
+            if (enemy) {
+                enemy.vida -= dados.dano;
+                if (enemy.vida <= 0) {
+                    let dropGridX = Math.floor(dados.x / Config.TAM_BLOCO);
+                    let dropGridY = Math.floor(dados.y / Config.TAM_BLOCO);
+                    this.game.world.criarDrop(dropGridX, dropGridY, enemy.dropItem);
+                    this.game.world.inimigos.splice(dados.indexInimigo, 1);
+                }
+                // Transmite IMEDIATAMENTE a atualização de vida/morte para todos
+                this.transmitir({ tipo: 'ATUALIZAR_INIMIGOS', inimigos: this.game.world.inimigos });
+            }
+        }
+        if (dados.tipo === 'ATUALIZAR_BAU') {
+            this.game.world.baus[dados.chave] = dados.inventarioBau;
+            if (this.souHost) {
+                // Repassa para os outros
+                this.transmitir(dados);
+            }
+            // Se estou com este baú aberto, atualizo a UI
+            if (this.game.inventory.bauAbertoChave === dados.chave) {
+                this.game.inventory.renderizarBauUI();
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ class InventoryManager {
         // Inicializa itens iniciais
         this.inventario[0] = { id: 'picareta_cobre', quantidade: 1 };
         this.inventario[1] = { id: 'espada_cobre', quantidade: 1 };
+        this.inventario[2] = { id: 'tocha', quantidade: 10 };
 
         // Inicializa ou reaproveita o elemento de tooltip no DOM
         this.tooltip = document.getElementById('inventory-tooltip');
@@ -74,7 +75,7 @@ class InventoryManager {
 
             slotDiv.addEventListener('dragstart', (e) => {
                 this.ocultarTooltip(); // Oculta o tooltip ao arrastar
-                e.dataTransfer.setData('text/plain', i);
+                e.dataTransfer.setData('text/plain', JSON.stringify({ tipo: 'inv', idx: i }));
                 slotDiv.classList.add('arrastando');
             });
 
@@ -98,14 +99,31 @@ class InventoryManager {
             slotDiv.addEventListener('drop', (e) => {
                 e.preventDefault();
                 slotDiv.classList.remove('drag-over');
-                const deIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                if (!isNaN(deIndex) && deIndex !== i) {
-                    // Troca os itens de posição no array
-                    const temp = this.inventario[deIndex];
-                    this.inventario[deIndex] = this.inventario[i];
-                    this.inventario[i] = temp;
-                    this.renderizarInventarioUI();
-                }
+                try {
+                    let dados = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (dados.tipo === 'inv' && dados.idx !== i) {
+                        const temp = this.inventario[dados.idx];
+                        this.inventario[dados.idx] = this.inventario[i];
+                        this.inventario[i] = temp;
+                        this.renderizarInventarioUI();
+                    } else if (dados.tipo === 'bau' && this.bauAbertoChave) {
+                        let inventarioBau = this.game.world.baus[this.bauAbertoChave];
+                        if (inventarioBau) {
+                            const temp = inventarioBau[dados.idx];
+                            inventarioBau[dados.idx] = this.inventario[i];
+                            this.inventario[i] = temp;
+                            this.renderizarInventarioUI();
+                            this.renderizarBauUI();
+                            
+                            const pacote = { tipo: 'ATUALIZAR_BAU', chave: this.bauAbertoChave, inventarioBau: inventarioBau };
+                            if (this.game.network.souHost) {
+                                this.game.network.transmitir(pacote);
+                            } else if (this.game.network.conexaoCliente) {
+                                this.game.network.conexaoCliente.send(pacote);
+                            }
+                        }
+                    }
+                } catch(err) {}
             });
 
             painel.appendChild(slotDiv);
@@ -267,6 +285,127 @@ class InventoryManager {
             });
             this.adicionarAoInventario(resultado, qtdResultado);
             SoundEffects.play('craft');
+        }
+    }
+
+    abrirBau(x, y) {
+        let chave = `${x},${y}`;
+        if (!this.game.world.baus[chave]) {
+            this.game.world.baus[chave] = new Array(25).fill(null);
+        }
+        this.bauAbertoChave = chave;
+        let painel = document.getElementById('painel-bau');
+        if(painel) painel.style.display = 'flex';
+        this.renderizarBauUI();
+        SoundEffects.play('door'); // som genérico
+    }
+
+    fecharBau() {
+        this.bauAbertoChave = null;
+        let painel = document.getElementById('painel-bau');
+        if(painel) painel.style.display = 'none';
+        SoundEffects.play('door');
+    }
+
+    renderizarBauUI() {
+        if (!this.bauAbertoChave) return;
+        const grid = document.getElementById('grid-bau');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        let inventarioBau = this.game.world.baus[this.bauAbertoChave];
+        if (!inventarioBau) return;
+
+        for (let i = 0; i < 25; i++) {
+            let slotDiv = document.createElement('div');
+            slotDiv.className = 'slot-inv';
+
+            let item = inventarioBau[i];
+            if (item) {
+                const tex = this.game.textures.get(item.id);
+                if (tex) {
+                    let itemCanvas = document.createElement('canvas');
+                    itemCanvas.width = tex.width;
+                    itemCanvas.height = tex.height;
+                    let itemCtx = itemCanvas.getContext('2d');
+                    itemCtx.drawImage(tex, 0, 0);
+                    itemCanvas.className = 'item-img-inv';
+                    slotDiv.appendChild(itemCanvas);
+                }
+                if (item.id !== 'picareta_cobre') {
+                    let contador = document.createElement('span');
+                    contador.className = 'contador-inv';
+                    contador.innerText = item.quantidade;
+                    slotDiv.appendChild(contador);
+                }
+            }
+
+            slotDiv.draggable = !!item;
+
+            if (item) {
+                slotDiv.addEventListener('mouseenter', (e) => this.mostrarTooltip(e, item.id, item.quantidade));
+                slotDiv.addEventListener('mousemove', (e) => this.posicionarTooltip(e));
+                slotDiv.addEventListener('mouseleave', () => this.ocultarTooltip());
+            }
+
+            slotDiv.addEventListener('dragstart', (e) => {
+                this.ocultarTooltip();
+                e.dataTransfer.setData('text/plain', JSON.stringify({ tipo: 'bau', idx: i }));
+                slotDiv.classList.add('arrastando');
+            });
+
+            slotDiv.addEventListener('dragend', () => {
+                slotDiv.classList.remove('arrastando');
+            });
+
+            slotDiv.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            slotDiv.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                slotDiv.classList.add('drag-over');
+            });
+
+            slotDiv.addEventListener('dragleave', () => {
+                slotDiv.classList.remove('drag-over');
+            });
+
+            slotDiv.addEventListener('drop', (e) => {
+                e.preventDefault();
+                slotDiv.classList.remove('drag-over');
+                try {
+                    let dados = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (dados.tipo === 'bau' && dados.idx !== i) {
+                        const temp = inventarioBau[dados.idx];
+                        inventarioBau[dados.idx] = inventarioBau[i];
+                        inventarioBau[i] = temp;
+                        this.renderizarBauUI();
+                        
+                        const pacote = { tipo: 'ATUALIZAR_BAU', chave: this.bauAbertoChave, inventarioBau: inventarioBau };
+                        if (this.game.network.souHost) {
+                            this.game.network.transmitir(pacote);
+                        } else if (this.game.network.conexaoCliente) {
+                            this.game.network.conexaoCliente.send(pacote);
+                        }
+                    } else if (dados.tipo === 'inv') {
+                        const temp = this.inventario[dados.idx];
+                        this.inventario[dados.idx] = inventarioBau[i];
+                        inventarioBau[i] = temp;
+                        this.renderizarInventarioUI();
+                        this.renderizarBauUI();
+                        
+                        const pacote = { tipo: 'ATUALIZAR_BAU', chave: this.bauAbertoChave, inventarioBau: inventarioBau };
+                        if (this.game.network.souHost) {
+                            this.game.network.transmitir(pacote);
+                        } else if (this.game.network.conexaoCliente) {
+                            this.game.network.conexaoCliente.send(pacote);
+                        }
+                    }
+                } catch(err) {}
+            });
+
+            grid.appendChild(slotDiv);
         }
     }
 

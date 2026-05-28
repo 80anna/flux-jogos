@@ -305,7 +305,58 @@ input {
     color: #bbb;
     font-style: italic;
     margin-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
     padding-top: 6px;
     line-height: 1.4;
+}
+
+/* BAÚ (CHEST UI) */
+#painel-bau {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #222;
+    padding: 15px;
+    border-radius: 8px;
+    border: 3px solid #ffeb3b;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#bau-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 18px;
+    color: #ffeb3b;
+    border-bottom: 1px solid #444;
+    padding-bottom: 8px;
+}
+
+#btn-fechar-bau {
+    background: #e53935;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#btn-fechar-bau:hover {
+    background: #c62828;
+}
+
+#grid-bau {
+    display: grid;
+    grid-template-columns: repeat(5, 56px);
+    grid-template-rows: repeat(5, 56px);
+    gap: 4px;
+    background: #111;
+    padding: 10px;
+    border-radius: 6px;
 }

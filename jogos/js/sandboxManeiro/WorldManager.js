@@ -16,12 +16,13 @@ class WorldManager {
             });
         }
         this.madeiraColocada = new Set();
+        this.baus = {}; // { 'x,y': [null, ... 25 itens] }
     }
 
     gerarMundo() {
         let mapaAltura = [];
         for (let x = 0; x < Config.LARGURA_MUNDO; x++) {
-            let alturaBase = 40;
+            let alturaBase = 100;
             let montanha = Math.sin(x / 20) * 12;
             let detalhe = Math.sin(x / 5) * 4;
             mapaAltura[x] = Math.floor(alturaBase + montanha + detalhe);
@@ -469,6 +470,67 @@ class WorldManager {
                 growlTimer: Math.random() * 150
             });
             SoundEffects.play('zombie_growl');
+        }
+    }
+
+    atualizarMudas() {
+        if (!this.mudasPlantadas) return;
+        
+        let agora = Date.now();
+        for (let chave in this.mudasPlantadas) {
+            // 5 minutos em milissegundos = 300000
+            if (agora - this.mudasPlantadas[chave] >= 300000) {
+                let [strX, strY] = chave.split(',');
+                let x = parseInt(strX);
+                let y = parseInt(strY);
+
+                // Verifica se o bloco ainda é uma muda e está na grama
+                if (this.mundo[x] && this.mundo[x][y] === 'muda' && this.mundo[x][y + 1] === 'grama') {
+                    // Substitui pela árvore
+                    // A base é o bloco atual, tronco principal
+                    let alturaTronco = 10 + Math.floor(Math.random() * 10);
+                    let raioCopaBase = 4;
+                    let tipoMadeira = 'madeira';
+                    let tipoFolha = 'folha';
+                    
+                    // Cresce
+                    for (let ty = 0; ty < alturaTronco; ty++) {
+                        let troncoY = y - ty;
+                        if (troncoY >= 0) this.mundo[x][troncoY] = tipoMadeira;
+                    }
+                    
+                    let topoY = y - alturaTronco;
+                    for (let fx = -raioCopaBase; fx <= raioCopaBase; fx++) {
+                        for (let fy = -raioCopaBase; fy <= raioCopaBase; fy++) {
+                            if (fx * fx + fy * fy <= raioCopaBase * raioCopaBase) {
+                                let fxx = x + fx;
+                                let fyy = topoY + fy;
+                                if (fxx >= 0 && fxx < Config.LARGURA_MUNDO && fyy >= 0 && fyy < Config.ALTURA_MUNDO) {
+                                    if (this.mundo[fxx][fyy] === 0) {
+                                        this.mundo[fxx][fyy] = tipoFolha;
+                                        // Manda os blocos atualizados se o jogo inteiro não atualizar, mas como vai ser difícil
+                                        // enviar 50 blocos 1 a 1, melhor enviar o pacote INIT ou algo do tipo
+                                        // mas por agora mandamos blocos individuais
+                                        const pacote = { tipo: 'BLOCO', x: fxx, y: fyy, idBloco: tipoFolha };
+                                        this.game.network.transmitir(pacote);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Manda o tronco
+                    for (let ty = 0; ty < alturaTronco; ty++) {
+                        let troncoY = y - ty;
+                        if (troncoY >= 0) {
+                            const pacote = { tipo: 'BLOCO', x: x, y: troncoY, idBloco: tipoMadeira };
+                            this.game.network.transmitir(pacote);
+                        }
+                    }
+                }
+                
+                // Remove da lista
+                delete this.mudasPlantadas[chave];
+            }
         }
     }
 
