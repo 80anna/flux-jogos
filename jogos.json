@@ -118,5 +118,11 @@
         "autor": "Lucas",
         "arquivo": "sandboxManeiro.html",
         "imagem" : "jogos/assets/sandboxManeiro/capa.png"
+    },
+    {
+        "nome": "Minecraft",
+        "autor": "Lucas",
+        "arquivo": "minecraft.html",
+        "imagem" : "jogos/assets/minecraft/capa.jpg"
     }
 ]
