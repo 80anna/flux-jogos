@@ -83,16 +83,171 @@ input {
 
 /* INVENTÁRIO (AGORA NA ESQUERDA) */
 #painel-inventario {
-    display: none; /* Muda para grid quando o jogo inicia */
-    grid-template-columns: repeat(5, 56px);
-    grid-template-rows: repeat(10, 56px);
-    gap: 4px;
+    display: none; /* Muda para flex quando o jogo inicia */
+    flex-direction: column;
+    width: 310px;
     background: #222;
     padding: 15px;
     border-radius: 8px;
     border: 2px solid #444;
     user-select: none;
+    box-sizing: border-box;
 }
+
+.grid-mochila {
+    display: grid;
+    grid-template-columns: repeat(5, 56px);
+    grid-template-rows: repeat(10, 56px);
+    gap: 4px;
+}
+
+/* CONTAINER DE ABAS */
+.abas-container {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #444;
+    padding-bottom: 6px;
+}
+
+.aba-btn {
+    flex: 1;
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-bottom: none;
+    color: #888;
+    padding: 8px 5px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-family: 'Outfit', sans-serif;
+}
+
+.aba-btn:hover {
+    background: #2d2d2d;
+    color: #fff;
+    border-color: #555;
+}
+
+.aba-btn.ativa {
+    background: #2d2d2d;
+    border-color: #ffeb3b;
+    color: #ffeb3b;
+}
+
+/* CONTAINER DE EQUIPAMENTOS */
+.equipamentos-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    padding: 10px 0;
+}
+
+.equipamentos-titulo {
+    font-size: 15px;
+    color: #ffeb3b;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 5px;
+}
+
+.equipamento-slot-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.equipamento-slot-label {
+    font-size: 12px;
+    color: #bbb;
+    font-weight: 600;
+}
+
+.slot-equipamento {
+    width: 64px;
+    height: 64px;
+    border: 2px dashed #555;
+    border-radius: 8px;
+    background: rgba(30, 30, 30, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.slot-equipamento:hover {
+    border-color: #ffeb3b;
+    background: rgba(50, 50, 50, 0.8);
+}
+
+.slot-equipamento.equipado {
+    border-style: solid;
+    border-color: #ffeb3b;
+    background: rgba(100, 100, 50, 0.2);
+}
+
+.slot-equipamento-placeholder {
+    font-size: 26px;
+    opacity: 0.25;
+    pointer-events: none;
+    user-select: none;
+}
+
+.slot-equipamento .item-img-inv {
+    width: 48px;
+    height: 48px;
+}
+
+/* CONTAINER DE STATUS */
+.stats-container {
+    background: rgba(15, 15, 15, 0.6);
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #e0e0e0;
+}
+
+.stat-row strong {
+    color: #ffeb3b;
+}
+
+.dica-gancho-box {
+    margin-top: 5px;
+    font-size: 11px;
+    color: #888;
+    line-height: 1.4;
+    text-align: center;
+    border-top: 1px solid #333;
+    padding-top: 10px;
+    width: 100%;
+}
+
 
 .slot-inv {
     width: 56px;

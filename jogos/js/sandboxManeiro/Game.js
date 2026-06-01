@@ -66,6 +66,18 @@ class Game {
             if (['S', 's', 'ArrowDown'].includes(e.key)) this.player.teclas.s = true;
             if (e.key === 'Shift') this.player.teclas.shift = true;
 
+            if (e.key === 'e' || e.key === 'E') {
+                if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                    return;
+                }
+                const rect = this.canvas.getBoundingClientRect();
+                const mX = this.lastMouseX !== undefined ? this.lastMouseX : window.innerWidth / 2;
+                const mY = this.lastMouseY !== undefined ? this.lastMouseY : window.innerHeight / 2;
+                const mouseX = (mX - rect.left) * (this.canvas.width / rect.width) + this.camera.x;
+                const mouseY = (mY - rect.top) * (this.canvas.height / rect.height) + this.camera.y;
+                this.player.lancarOuRecolherGancho(mouseX, mouseY);
+            }
+
             if (e.key >= '0' && e.key <= '9') {
                 let num = parseInt(e.key);
                 this.inventory.slotSelecionado = (num === 0) ? 9 : num - 1;

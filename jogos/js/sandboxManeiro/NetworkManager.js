@@ -33,7 +33,7 @@ class NetworkManager {
         document.getElementById('menu-inicial').style.display = 'none';
         document.getElementById('info-rede').style.display = 'flex';
         
-        document.getElementById('painel-inventario').style.display = 'grid';
+        document.getElementById('painel-inventario').style.display = 'flex';
         document.getElementById('painel-crafting').style.display = 'flex';
         
         this.game.iniciarMusica();

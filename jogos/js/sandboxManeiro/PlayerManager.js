@@ -16,7 +16,15 @@ class PlayerManager {
             correndo: false,
             sprintExausto: false,
             vida: 100,
-            invulTimer: 0
+            invulTimer: 0,
+            ganchoAtivo: false,
+            ganchoPreso: false,
+            ganchoX: 0,
+            ganchoY: 0,
+            ganchoTargetX: 0,
+            ganchoTargetY: 0,
+            ganchoVelX: 0,
+            ganchoVelY: 0
         };
         this.jogadores = {};
         this.teclas = { a: false, d: false, w: false, s: false, shift: false };
@@ -27,6 +35,44 @@ class PlayerManager {
 
     triggerSwing() {
         this.swingTimer = 15; // 15 frames de duração para a batida
+    }
+
+    lancarOuRecolherGancho(targetX, targetY) {
+        if (this.meuJogador.ganchoAtivo) {
+            // Se já estiver ativo, recolhe
+            this.meuJogador.ganchoAtivo = false;
+            this.meuJogador.ganchoPreso = false;
+            SoundEffects.play('place_block'); // som de soltar
+        } else {
+            // Ativa o gancho
+            this.meuJogador.ganchoAtivo = true;
+            this.meuJogador.ganchoPreso = false;
+            
+            // Começa no centro do jogador
+            let startX = this.meuJogador.x + this.meuJogador.width / 2;
+            let startY = this.meuJogador.y + this.meuJogador.height / 2;
+            
+            this.meuJogador.ganchoX = startX;
+            this.meuJogador.ganchoY = startY;
+            this.meuJogador.ganchoTargetX = targetX;
+            this.meuJogador.ganchoTargetY = targetY;
+            
+            // Calcula o vetor velocidade da ponta do gancho
+            let dx = targetX - startX;
+            let dy = targetY - startY;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > 0) {
+                // Viaja a 28 pixels por frame
+                this.meuJogador.ganchoVelX = (dx / dist) * 28;
+                this.meuJogador.ganchoVelY = (dy / dist) * 28;
+            } else {
+                this.meuJogador.ganchoVelX = 0;
+                this.meuJogador.ganchoVelY = -28;
+            }
+            
+            SoundEffects.play('jump'); // som de lançamento
+        }
     }
 
     verificarColisao(nx, ny, width = this.meuJogador.width, height = this.meuJogador.height, checarPlataforma = false) {
@@ -107,20 +153,105 @@ class PlayerManager {
             this.meuJogador.sprintBar = Math.min(100, this.meuJogador.sprintBar + 0.3);
         }
 
+        // ---------------- FISICA DO GANCHO (VIAGEM E TRAÇÃO) ----------------
+        if (this.meuJogador.ganchoAtivo && !this.meuJogador.ganchoPreso) {
+            // Avança a ponta do gancho
+            this.meuJogador.ganchoX += this.meuJogador.ganchoVelX;
+            this.meuJogador.ganchoY += this.meuJogador.ganchoVelY;
+            
+            // Verifica se colidiu com algum bloco no mapa
+            let gx = Math.floor(this.meuJogador.ganchoX / Config.TAM_BLOCO);
+            let gy = Math.floor(this.meuJogador.ganchoY / Config.TAM_BLOCO);
+            
+            let px = this.meuJogador.x + this.meuJogador.width / 2;
+            let py = this.meuJogador.y + this.meuJogador.height / 2;
+            let distCorda = Math.sqrt((this.meuJogador.ganchoX - px) * (this.meuJogador.ganchoX - px) + (this.meuJogador.ganchoY - py) * (this.meuJogador.ganchoY - py));
+            
+            if (gx >= 0 && gx < Config.LARGURA_MUNDO && gy >= 0 && gy < Config.ALTURA_MUNDO) {
+                let idBloco = this.game.world.mundo[gx]?.[gy] || 0;
+                if (idBloco !== 0) {
+                    // Prende em qualquer bloco (com ou sem colisão, conforme solicitado)
+                    this.meuJogador.ganchoPreso = true;
+                    // Alinha ao centro do bloco
+                    this.meuJogador.ganchoX = gx * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
+                    this.meuJogador.ganchoY = gy * Config.TAM_BLOCO + Config.TAM_BLOCO / 2;
+                    SoundEffects.play('place_block'); // som de prender
+                }
+            }
+            
+            // Se excedeu alcance máximo (450px) ou saiu dos limites, recolhe
+            if (distCorda > 450 || gx < 0 || gx >= Config.LARGURA_MUNDO || gy < 0 || gy >= Config.ALTURA_MUNDO) {
+                this.meuJogador.ganchoAtivo = false;
+                this.meuJogador.ganchoPreso = false;
+            }
+        }
+
         let velocidadeBase = this.meuJogador.correndo ? 8.6 : 5.4;
 
-        if (this.teclas.a) this.meuJogador.vx = -velocidadeBase;
-        else if (this.teclas.d) this.meuJogador.vx = velocidadeBase;
-        else this.meuJogador.vx *= 0.7;
+        if (this.meuJogador.ganchoPreso) {
+            // Se o gancho está preso, calcula a força de tração
+            let px = this.meuJogador.x + this.meuJogador.width / 2;
+            let py = this.meuJogador.y + this.meuJogador.height / 2;
+            let dx = this.meuJogador.ganchoX - px;
+            let dy = this.meuJogador.ganchoY - py;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist <= 20) {
+                // Chegou perto o suficiente, desativa o gancho
+                this.meuJogador.ganchoAtivo = false;
+                this.meuJogador.ganchoPreso = false;
+            } else {
+                // Puxa o jogador em direção ao gancho (aceleração progressiva)
+                let forcaAtracao = 0.95;
+                this.meuJogador.vx += (dx / dist) * forcaAtracao;
+                this.meuJogador.vy += (dy / dist) * forcaAtracao;
+                
+                // Diminui efeito da gravidade enquanto sobe
+                if (dy < 0) {
+                    this.meuJogador.vy -= 0.28;
+                }
+            }
+            
+            // A e D adicionam aceleração lateral extra (balanço de Homem-Aranha!)
+            if (this.teclas.a) {
+                this.meuJogador.vx = Math.max(-13, this.meuJogador.vx - 0.45);
+            } else if (this.teclas.d) {
+                this.meuJogador.vx = Math.min(13, this.meuJogador.vx + 0.45);
+            } else {
+                this.meuJogador.vx *= 0.98; // Menos atrito para balanço realista
+            }
+            
+            // Limita a velocidade máxima para evitar passar pelos blocos (bugs de física)
+            let speedLimit = 16.5;
+            let speed = Math.sqrt(this.meuJogador.vx * this.meuJogador.vx + this.meuJogador.vy * this.meuJogador.vy);
+            if (speed > speedLimit) {
+                this.meuJogador.vx = (this.meuJogador.vx / speed) * speedLimit;
+                this.meuJogador.vy = (this.meuJogador.vy / speed) * speedLimit;
+            }
+        } else {
+            // Movimentação padrão
+            if (this.teclas.a) this.meuJogador.vx = -velocidadeBase;
+            else if (this.teclas.d) this.meuJogador.vx = velocidadeBase;
+            else this.meuJogador.vx *= 0.7;
+        }
 
+        // Aplica o movimento e checa colisões no eixo X
         this.meuJogador.x += this.meuJogador.vx;
         if (this.verificarColisao(this.meuJogador.x, this.meuJogador.y)) {
             this.meuJogador.x -= this.meuJogador.vx;
             this.meuJogador.vx = 0;
         }
 
-        this.meuJogador.vy += 0.72;
+        // Gravidade normal (reduzida um pouco se estiver sendo puxado para cima pelo gancho)
+        let gravidade = 0.72;
+        if (this.meuJogador.ganchoPreso && (this.meuJogador.ganchoY < this.meuJogador.y)) {
+            gravidade = 0.35; // gravidade reduzida ao subir com o gancho
+        }
+        this.meuJogador.vy += gravidade;
+        
         if (this.meuJogador.vy > 14.4) this.meuJogador.vy = 14.4;
+        
+        // Aplica o movimento e checa colisões no eixo Y
         this.meuJogador.y += this.meuJogador.vy;
 
         let noChao = false;
@@ -136,10 +267,19 @@ class PlayerManager {
             this.meuJogador.vy = 0;
         }
 
-        // Pulo aumentado para força -15
-        if (this.teclas.w && noChao) {
-            this.meuJogador.vy = -15;
-            SoundEffects.play('jump');
+        // Pulo normal (no chão) ou Pulo do Gancho (solta e dá impulso)
+        if (this.teclas.w) {
+            if (this.meuJogador.ganchoPreso) {
+                // Solta o gancho dando um impulso forte para cima/frente! (Estilo Homem-Aranha muito maneiro)
+                this.meuJogador.ganchoAtivo = false;
+                this.meuJogador.ganchoPreso = false;
+                this.meuJogador.vy = -12.5; // impulso vertical
+                this.meuJogador.vx *= 1.25; // bônus de velocidade horizontal
+                SoundEffects.play('jump');
+            } else if (noChao) {
+                this.meuJogador.vy = -15;
+                SoundEffects.play('jump');
+            }
         }
 
         // Efeito sonoro compassado de passos ao caminhar/correr no chão
@@ -366,6 +506,110 @@ class PlayerManager {
     desenharPlayers(ctx) {
         for (let id in this.jogadores) {
             let p = this.jogadores[id];
+            
+            // Desenha o gancho se ativo
+            if (p.ganchoAtivo) {
+                let pX = p.x + p.width / 2;
+                let pY = p.y + p.height / 2;
+                
+                ctx.save();
+                
+                // 1. Sombra do cabo
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(pX, pY);
+                ctx.lineTo(p.ganchoX, p.ganchoY);
+                ctx.stroke();
+
+                // 2. Cabo metálico principal
+                ctx.strokeStyle = '#78909c';
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(pX, pY);
+                ctx.lineTo(p.ganchoX, p.ganchoY);
+                ctx.stroke();
+
+                // 3. Brilho do cabo (efeito trançado metálico)
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.moveTo(pX, pY);
+                ctx.lineTo(p.ganchoX, p.ganchoY);
+                ctx.stroke();
+                
+                ctx.restore();
+
+                // 4. Âncora metálica de 3 pontas na extremidade
+                ctx.save();
+                ctx.translate(p.ganchoX, p.ganchoY);
+                let angle = Math.atan2(p.ganchoY - pY, p.ganchoX - pX);
+                ctx.rotate(angle);
+                
+                // Sombra da âncora
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 4;
+
+                // Anel de conexão
+                ctx.strokeStyle = '#b0bec5';
+                ctx.fillStyle = '#37474f';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(-8, 0, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Haste central
+                ctx.strokeStyle = '#90a4ae';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(-5, 0);
+                ctx.lineTo(4, 0);
+                ctx.stroke();
+
+                // Garras/Pontas
+                ctx.strokeStyle = '#cfd8dc';
+                ctx.fillStyle = '#78909c';
+                ctx.lineWidth = 2;
+                
+                // Ponta central
+                ctx.beginPath();
+                ctx.moveTo(4, 0);
+                ctx.lineTo(8, 0);
+                ctx.stroke();
+
+                // Garra esquerda (superior)
+                ctx.beginPath();
+                ctx.moveTo(2, 0);
+                ctx.quadraticCurveTo(6, -6, -2, -7);
+                ctx.lineTo(-4, -6);
+                ctx.stroke();
+
+                // Garra direita (inferior)
+                ctx.beginPath();
+                ctx.moveTo(2, 0);
+                ctx.quadraticCurveTo(6, 6, -2, 7);
+                ctx.lineTo(-4, 6);
+                ctx.stroke();
+
+                // Faíscas/Brilhos se preso
+                if (p.ganchoPreso) {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ffeb3b';
+                    for (let i = 0; i < 3; i++) {
+                        let faixAngle = (i * Math.PI * 2) / 3 + (Date.now() / 200);
+                        let fx = Math.cos(faixAngle) * 6;
+                        let fy = Math.sin(faixAngle) * 6;
+                        ctx.fillRect(fx - 1, fy - 1, 2, 2);
+                    }
+                }
+
+                ctx.restore();
+            }
+            
             this.desenharHumanoid(ctx, p, p.heldItemId, p.swingTimer);
         }
     }
