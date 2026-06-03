@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Flux Tower Defense</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="assets/fluxTowerDefense/style.css">
+</head>
+<body>
+    <div id="game-wrapper">
+        <header id="hud">
+            <div class="hud-item">
+                <span class="hud-label">Vidas</span>
+                <span id="lives-display" class="hud-value">20</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Dinheiro</span>
+                <span id="money-display" class="hud-value">$ 150</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Onda</span>
+                <span id="wave-display" class="hud-value">1</span>
+            </div>
+            <div class="hud-actions">
+                <button id="btn-next-wave" class="btn btn-primary">Próxima Onda</button>
+                <button id="btn-autoplay" class="btn btn-secondary">Autoplay: OFF</button>
+                <button id="btn-speed" class="btn btn-secondary">Velocidade: 1x</button>
+                <button id="btn-music" class="btn btn-secondary">Música: ON</button>
+            </div>
+        </header>
+
+        <main id="game-container">
+            <!-- Tela de Início -->
+            <div id="game-start-screen">
+                <h1>Flux Tower Defense</h1>
+                <p>O setor de T.I. está sob ataque! Defenda-se das hordas de chefes carecas espalhando equipamentos corporativos pelo corredor.</p>
+                <button id="btn-start-game" class="btn btn-primary" style="margin-top: 20px; font-size: 18px; padding: 15px 30px;">Iniciar Expediente</button>
+            </div>
+
+            <!-- Tela de Game Over -->
+            <div id="game-over-screen" class="hidden">
+                <h1>Fim de Expediente!</h1>
+                <p>Os chefes carecas tomaram conta do setor.</p>
+                <button id="btn-restart" class="btn btn-primary">Tentar Novamente</button>
+            </div>
+            
+            <!-- Tela de Vitória -->
+            <div id="game-victory-screen" class="hidden">
+                <h1 style="color: var(--success);">Meta Alcançada!</h1>
+                <p>Você sobreviveu ao ataque corporativo.</p>
+                <button id="btn-continue-infinite" class="btn btn-primary">Continuar (Modo Infinito)</button>
+            </div>
+
+            <!-- Canvas do Jogo -->
+            <canvas id="game-canvas" width="1200" height="700"></canvas>
+
+            <!-- Menu de Upgrade de Torre -->
+            <div id="tower-upgrade-menu" class="hidden">
+                <h3 id="upgrade-title">Torre</h3>
+                <p>Nível: <span id="upgrade-level">1</span></p>
+                <p>Dano: <span id="upgrade-damage">10</span> -> <span id="upgrade-damage-next" class="text-success">15</span></p>
+                <button id="btn-upgrade" class="btn btn-upgrade">Melhorar ($ <span id="upgrade-cost">50</span>)</button>
+                <button id="btn-sell" class="btn btn-danger">Vender ($ <span id="sell-value">25</span>)</button>
+            </div>
+        </main>
+
+        <aside id="shop-panel">
+            <h2>Departamento de TI</h2>
+            <div id="shop-items" class="shop-grid">
+                <!-- Torres injetadas pelo UIManager -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- Scripts do Jogo -->
+    <script src="js/fluxTowerDefense/Config.js"></script>
+    <script src="js/fluxTowerDefense/MapManager.js"></script>
+    <script src="js/fluxTowerDefense/EnemyManager.js"></script>
+    <script src="js/fluxTowerDefense/TowerManager.js"></script>
+    <script src="js/fluxTowerDefense/WaveManager.js"></script>
+    <script src="js/fluxTowerDefense/UIManager.js"></script>
+    <script src="js/fluxTowerDefense/Game.js"></script>
+</body>
+</html>

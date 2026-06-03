@@ -124,5 +124,11 @@
         "autor": "Lucas",
         "arquivo": "minecraft.html",
         "imagem" : "jogos/assets/minecraft/capa.jpg"
+    },
+    {
+        "nome": "Flux Tower Defense",
+        "autor": "Lucas",
+        "arquivo": "fluxTowerDefense.html",
+        "imagem": "jogos/assets/fluxTowerDefense/capa.png"
     }
 ]
