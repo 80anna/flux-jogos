@@ -656,14 +656,31 @@ class WorldManager {
     }
 
     atualizarInimigos() {
-        let player = this.game.player.meuJogador;
-        
+        let jogadores = this.game.player.jogadores;
+        let hostId = this.game.network.meuId;
+
         for (let i = this.inimigos.length - 1; i >= 0; i--) {
             let enemy = this.inimigos[i];
             
-            // Se o inimigo estiver muito distante do jogador (ex: > 1500px), despawna para liberar memória
-            let distPlayer = Math.abs(enemy.x - player.x);
-            if (distPlayer > 2000) {
+            // Encontra o jogador mais próximo para IA
+            let targetPlayer = null;
+            let targetId = null;
+            let minDist = Infinity;
+            
+            for (let id in jogadores) {
+                let p = jogadores[id];
+                let dist = Math.abs(enemy.x - p.x);
+                if (dist < minDist) {
+                    minDist = dist;
+                    targetPlayer = p;
+                    targetId = id;
+                }
+            }
+            
+            if (!targetPlayer) continue;
+
+            // Se o inimigo estiver muito distante do alvo mais próximo (ex: > 1500px), despawna
+            if (minDist > 2000) {
                 this.inimigos.splice(i, 1);
                 continue;
             }
@@ -679,90 +696,99 @@ class WorldManager {
                 enemy.vy = 0;
             }
 
-            // Movimento Horizontal e IA
+            // Movimento Horizontal e IA usando targetPlayer
             if (enemy.tipo === 'slime_azul') {
                 enemy.hopTimer++;
-                // Slime Azul salta a cada 120 frames (2 segundos)
                 if (enemy.hopTimer >= 120) {
-                    enemy.hopTimer = Math.random() * 20; // reinicia com staggering
-                    enemy.vy = -9.5 - Math.random() * 2; // salto
-                    let paraEsquerda = player.x < enemy.x;
+                    enemy.hopTimer = Math.random() * 20;
+                    enemy.vy = -9.5 - Math.random() * 2;
+                    let paraEsquerda = targetPlayer.x < enemy.x;
                     enemy.vx = paraEsquerda ? -3 : 3;
-                    if (Math.abs(enemy.x - player.x) < 800) {
+                    if (Math.abs(enemy.x - targetPlayer.x) < 800) {
                         SoundEffects.play('slime_hop');
                     }
                 }
                 
-                // Aplica movimento horizontal do pulo
                 enemy.x += enemy.vx;
                 if (this.game.player.verificarColisao(enemy.x, enemy.y, enemy.width, enemy.height)) {
                     enemy.x -= enemy.vx;
-                    enemy.vx = -enemy.vx; // rebate ao bater na parede
+                    enemy.vx = -enemy.vx;
                 }
                 
-                // Desaceleração horizontal rápida no chão para evitar deslizamento excessivo e aprisionamento em buracos
                 if (enemy.vy === 0) {
                     enemy.vx *= 0.25;
                 }
             } else if (enemy.tipo === 'zombie') {
-                // Zumbi caminha diretamente na direção do jogador de forma implacável
-                let paraEsquerda = player.x < enemy.x;
+                let paraEsquerda = targetPlayer.x < enemy.x;
                 enemy.vx = paraEsquerda ? -1.4 : 1.4;
                 
                 enemy.x += enemy.vx;
-                // Se colidir horizontalmente (bater em parede/bloco), tenta pular para subir
                 if (this.game.player.verificarColisao(enemy.x, enemy.y, enemy.width, enemy.height)) {
                     enemy.x -= enemy.vx;
                     if (enemy.vy === 0) {
-                        enemy.vy = -8.5; // tenta pular obstáculo
+                        enemy.vy = -8.5;
                     }
                 }
 
-                // Grunhido periódico do zumbi se estiver por perto
                 enemy.growlTimer = (enemy.growlTimer || 0) + 1;
-                if (enemy.growlTimer >= 240 + Math.random() * 240) { // a cada 4 a 8 segundos
+                if (enemy.growlTimer >= 240 + Math.random() * 240) {
                     enemy.growlTimer = 0;
-                    if (Math.abs(enemy.x - player.x) < 800) {
+                    if (Math.abs(enemy.x - targetPlayer.x) < 800) {
                         SoundEffects.play('zombie_growl');
                     }
                 }
             }
 
-            // Colisão com o Jogador (Dano no Jogador)
-            let overlapX = Math.abs(enemy.x + enemy.width / 2 - (player.x + player.width / 2)) < (enemy.width + player.width) / 2;
-            let overlapY = Math.abs(enemy.y + enemy.height / 2 - (player.y + player.height / 2)) < (enemy.height + player.height) / 2;
-            
-            if (overlapX && overlapY) {
-                if (player.invulTimer === 0) {
-                    // Causa dano com redução da armadura
-                    let danoReal = Math.max(1, enemy.dano - (player.armorDefesa || 0));
-                    player.vida = Math.max(0, player.vida - danoReal);
-                    player.invulTimer = 60; // 1 segundo de invulnerabilidade
-                    SoundEffects.play('hit_player');
-                    
-                    // Knockback no jogador
-                    player.vx = (player.x > enemy.x) ? 7 : -7;
-                    player.vy = -5;
-                    
-                    // Emite partículas de sangue/dano vermelhas do jogador
-                    for (let p = 0; p < 12; p++) {
-                        this.game.particulas.push({
-                            x: player.x + player.width / 2,
-                            y: player.y + player.height / 2,
-                            vx: (Math.random() - 0.5) * 6,
-                            vy: (Math.random() - 0.5) * 6 - 2,
-                            cor: '#d50000',
-                            tamanho: 3 + Math.random() * 3,
-                            vida: 20 + Math.random() * 20
-                        });
-                    }
+            // Colisão com TODOS os Jogadores (Dano)
+            for (let id in jogadores) {
+                let p = jogadores[id];
+                let overlapX = Math.abs(enemy.x + enemy.width / 2 - (p.x + p.width / 2)) < (enemy.width + p.width) / 2;
+                let overlapY = Math.abs(enemy.y + enemy.height / 2 - (p.y + p.height / 2)) < (enemy.height + p.height) / 2;
+                
+                if (overlapX && overlapY) {
+                    enemy.hitCooldowns = enemy.hitCooldowns || {};
+                    let now = Date.now();
 
-                    // Verifica se o jogador morreu
-                    if (player.vida <= 0) {
-                        player.vida = 100;
-                        player.x = (Config.LARGURA_MUNDO / 2) * Config.TAM_BLOCO;
-                        player.y = 0;
-                        alert("Você foi derrotado! Renascendo no ponto de spawn inicial...");
+                    if (id === hostId) {
+                        if (p.invulTimer === 0) {
+                            let danoReal = Math.max(1, enemy.dano - (p.armorDefesa || 0));
+                            p.vida = Math.max(0, p.vida - danoReal);
+                            p.invulTimer = 60;
+                            SoundEffects.play('hit_player');
+                            
+                            p.vx = (p.x > enemy.x) ? 7 : -7;
+                            p.vy = -5;
+                            
+                            for (let k = 0; k < 12; k++) {
+                                this.game.particulas.push({
+                                    x: p.x + p.width / 2,
+                                    y: p.y + p.height / 2,
+                                    vx: (Math.random() - 0.5) * 6,
+                                    vy: (Math.random() - 0.5) * 6 - 2,
+                                    cor: '#d50000',
+                                    tamanho: 3 + Math.random() * 3,
+                                    vida: 20 + Math.random() * 20
+                                });
+                            }
+
+                            if (p.vida <= 0) {
+                                p.vida = 100;
+                                p.x = (Config.LARGURA_MUNDO / 2) * Config.TAM_BLOCO;
+                                p.y = 0;
+                                alert("Você foi derrotado! Renascendo no ponto de spawn inicial...");
+                            }
+                        }
+                    } else {
+                        // Para clientes, usamos um hitCooldown no lado do host para não floodar a rede
+                        if (!enemy.hitCooldowns[id] || now - enemy.hitCooldowns[id] > 1000) {
+                            enemy.hitCooldowns[id] = now;
+                            this.game.network.transmitir({
+                                tipo: 'DANO_JOGADOR',
+                                idJogador: id,
+                                dano: enemy.dano,
+                                enemyX: enemy.x
+                            });
+                        }
                     }
                 }
             }

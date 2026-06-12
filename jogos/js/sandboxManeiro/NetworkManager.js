@@ -205,6 +205,41 @@ class NetworkManager {
                 this.game.inventory.renderizarBauUI();
             }
         }
+        if (dados.tipo === 'DANO_JOGADOR') {
+            let p = this.game.player.jogadores[dados.idJogador];
+            if (p) {
+                SoundEffects.play('hit_player');
+                for (let k = 0; k < 12; k++) {
+                    this.game.particulas.push({
+                        x: p.x + p.width / 2,
+                        y: p.y + p.height / 2,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: (Math.random() - 0.5) * 6 - 2,
+                        cor: '#d50000',
+                        tamanho: 3 + Math.random() * 3,
+                        vida: 20 + Math.random() * 20
+                    });
+                }
+                
+                if (dados.idJogador === this.meuId) {
+                    if (this.game.player.meuJogador.invulTimer === 0) {
+                        let danoReal = Math.max(1, dados.dano - (this.game.player.meuJogador.armorDefesa || 0));
+                        this.game.player.meuJogador.vida = Math.max(0, this.game.player.meuJogador.vida - danoReal);
+                        this.game.player.meuJogador.invulTimer = 60;
+                        
+                        this.game.player.meuJogador.vx = (this.game.player.meuJogador.x > dados.enemyX) ? 7 : -7;
+                        this.game.player.meuJogador.vy = -5;
+
+                        if (this.game.player.meuJogador.vida <= 0) {
+                            this.game.player.meuJogador.vida = 100;
+                            this.game.player.meuJogador.x = (Config.LARGURA_MUNDO / 2) * Config.TAM_BLOCO;
+                            this.game.player.meuJogador.y = 0;
+                            alert("Você foi derrotado! Renascendo no ponto de spawn inicial...");
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 window.NetworkManager = NetworkManager;
