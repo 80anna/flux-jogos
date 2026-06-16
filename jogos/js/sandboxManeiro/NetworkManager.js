@@ -9,11 +9,29 @@ class NetworkManager {
                     { urls: 'stun:stun2.l.google.com:19302' },
                     { urls: 'stun:stun3.l.google.com:19302' },
                     { urls: 'stun:stun4.l.google.com:19302' },
-                    { urls: 'stun:stun.services.mozilla.com' }
+                    { urls: 'stun:stun.services.mozilla.com' },
+                    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+                    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
                 ]
             }
         });
         this.souHost = false;
+        
+        this.peer.on('error', (err) => {
+            console.error("Erro no PeerJS:", err);
+            // Mostra o erro para o usuário se não for um fatal de ID repetido
+            if (err.type !== 'peer-unavailable') {
+                alert("Erro de conexão (WebRTC): " + err.type);
+            }
+            
+            // Restaura o botão de entrar se der erro
+            const btnEntrar = document.getElementById('btn-entrar');
+            if (btnEntrar) {
+                btnEntrar.innerText = "🌍 Entrar";
+                btnEntrar.disabled = false;
+            }
+        });
         this.conexoesHost = [];
         this.conexaoCliente = null;
         this.meuId = null;
@@ -102,14 +120,45 @@ class NetworkManager {
     entrarNoMundo() {
         const hostId = document.getElementById('id-host').value;
         if (!hostId) return;
-        this.conexaoCliente = this.peer.connect(hostId);
+
+        const btnEntrar = document.getElementById('btn-entrar');
+        if (btnEntrar) {
+            btnEntrar.innerText = "⏳ Conectando...";
+            btnEntrar.disabled = true;
+        }
+
+        // reliable: true garante a ordem e entrega dos pacotes via SCTP
+        this.conexaoCliente = this.peer.connect(hostId, { reliable: true });
 
         this.conexaoCliente.on('open', () => {
             this.habilitarUIJogando();
             document.getElementById('meu-id').innerText = "Conectado!";
             document.getElementById('qtd-jogadores').parentElement.style.display = 'none';
         });
+
+        this.conexaoCliente.on('error', (err) => {
+            alert("Erro na conexão com o Host: " + err);
+            if (btnEntrar) {
+                btnEntrar.innerText = "🌍 Entrar";
+                btnEntrar.disabled = false;
+            }
+        });
+
+        this.conexaoCliente.on('close', () => {
+            alert("A conexão com o Host foi perdida ou encerrada.");
+            location.reload(); // Recarrega a página ao desconectar
+        });
+
         this.conexaoCliente.on('data', this.gerenciarDadosRede);
+
+        // Timeout de conexão de 10 segundos
+        setTimeout(() => {
+            if (!this.conexaoCliente.open && btnEntrar && btnEntrar.disabled) {
+                alert("Tempo limite excedido! O Host pode estar offline, o ID está incorreto, ou a rede possui um Firewall estrito.");
+                btnEntrar.innerText = "🌍 Entrar";
+                btnEntrar.disabled = false;
+            }
+        }, 10000);
     }
 
     transmitir(dados, ignorarId = null) {
