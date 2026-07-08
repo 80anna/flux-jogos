@@ -130,5 +130,11 @@
         "autor": "Lucas",
         "arquivo": "fluxTowerDefense.html",
         "imagem": "jogos/assets/fluxTowerDefense/capa.png"
+    },
+    {
+        "nome": "Mundo do Romário",
+        "autor": "Lucas",
+        "arquivo": "romario.html",
+        "imagem": "jogos/assets/romario.jpg"
     }
 ]
