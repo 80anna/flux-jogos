@@ -97,9 +97,16 @@
             const select = document.getElementById('rom-select');
             
             try {
-                const response = await fetch('get_roms.php');
+                // Como o GitHub Pages não roda PHP, usamos a API pública do GitHub para listar os arquivos da pasta
+                const response = await fetch('https://api.github.com/repos/80anna/flux-jogos/contents/jogos/assets/romario');
                 if (response.ok) {
-                    const roms = await response.json();
+                    const files = await response.json();
+                    
+                    // Filtra apenas os arquivos .sfc e ignora o romario.sfc (que já é o padrão)
+                    const roms = files
+                        .filter(f => f.type === 'file' && f.name.endsWith('.sfc') && f.name !== 'romario.sfc')
+                        .map(f => f.name);
+
                     roms.forEach(rom => {
                         const option = document.createElement('option');
                         option.value = rom;
@@ -108,7 +115,7 @@
                     });
                 }
             } catch (error) {
-                console.error("Erro ao carregar ROMs dinamicamente:", error);
+                console.error("Erro ao carregar ROMs dinamicamente da API do GitHub:", error);
             }
 
             if (select) {
