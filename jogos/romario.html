@@ -32,9 +32,51 @@
             color: #888;
             font-size: 14px;
         }
+
+        .selector-container {
+            margin-bottom: 20px;
+            background: #222;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 2px solid #333;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+        }
+
+        .selector-container label {
+            margin-right: 10px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .selector-container select {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .selector-container select:focus,
+        .selector-container select:hover {
+            border-color: #e74c3c;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Seletor de ROM -->
+    <div class="selector-container" id="selector-container" style="display: none;">
+        <label for="rom-select">Selecione o Jogo:</label>
+        <select id="rom-select" onchange="changeRom()">
+            <option value="romario.sfc">Super Mundo do Romário</option>
+        </select>
+    </div>
 
     <!-- O contêiner onde o emulador será injetado -->
     <div id="emulator-container">
@@ -47,13 +89,54 @@
     </div>
     <!-- Configuração do Emulador -->
     <script>
+        // Lógica do Seletor de ROM
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedRom = urlParams.get('rom') || 'romario.sfc';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const select = document.getElementById('rom-select');
+            
+            try {
+                const response = await fetch('get_roms.php');
+                if (response.ok) {
+                    const roms = await response.json();
+                    roms.forEach(rom => {
+                        const option = document.createElement('option');
+                        option.value = rom;
+                        option.textContent = rom.replace('.sfc', '').replace(/_/g, ' ');
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error("Erro ao carregar ROMs dinamicamente:", error);
+            }
+
+            if (select) {
+                // Se a rom atual não estiver nas options, adiciona para evitar que fique em branco
+                if (!Array.from(select.options).some(opt => opt.value === selectedRom)) {
+                    const option = document.createElement('option');
+                    option.value = selectedRom;
+                    option.textContent = selectedRom.replace('.sfc', '').replace(/_/g, ' ');
+                    select.appendChild(option);
+                }
+                select.value = selectedRom;
+            }
+
+            document.getElementById('selector-container').style.display = 'flex';
+        });
+
+        function changeRom() {
+            const select = document.getElementById('rom-select');
+            window.location.href = window.location.pathname + '?rom=' + select.value;
+        }
+
         // Define onde o jogo vai renderizar
         EJS_player = '#game';
         
-        // Define o console como Game Boy Advance
+        // Define o console como SNES
         EJS_core = 'snes'; 
         
-        EJS_gameUrl = 'assets/romario.sfc'; 
+        EJS_gameUrl = 'assets/romario/' + selectedRom; 
 
         EJS_color = '#e74c3c'; // Cor do botão de play
         EJS_startOnLoaded = true; // Inicia automaticamente ao carregar a página
