@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Mundo do Romário</title>
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="site_name">
-    <meta property="og:description" content="description">
+    <meta property="og:site_name" content="Flux Jogos">
+    <meta property="og:description" content="Super Mundo do Romário">
     <meta property="og:footer" content="footer">
-    <meta name="theme-color" content="red">
-    <link type="application/json+oembed" href="embed.json">
-    <meta property="og:image" content="assets/romario.jpg">
+    <meta name="theme-color" content="#4285f4">
+    <link type="application/json+oembed" href="assets/embed_lucas.json">
+    <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/pt/0/06/Super-Mario-World.jpg">
+    <link rel="icon" type="image/x-icon" href="assets/flux_games.ico">
     <style>
         body {
             background-color: #121212;
@@ -76,16 +77,12 @@
     </style>
 </head>
 <body>
-
-    <!-- Seletor de ROM -->
     <div class="selector-container" id="selector-container" style="display: none;">
         <label for="rom-select">Selecione o Jogo:</label>
         <select id="rom-select" onchange="changeRom()">
             <option value="romario.sfc">Super Mundo do Romário</option>
         </select>
     </div>
-
-    <!-- O contêiner onde o emulador será injetado -->
     <div id="emulator-container">
         <div id="game"></div>
     </div>
@@ -104,12 +101,10 @@
             const select = document.getElementById('rom-select');
             
             try {
-                // Como o GitHub Pages não roda PHP, usamos a API pública do GitHub para listar os arquivos da pasta
                 const response = await fetch('https://api.github.com/repos/80anna/flux-jogos/contents/jogos/assets/romario');
                 if (response.ok) {
                     const files = await response.json();
                     
-                    // Filtra apenas os arquivos .sfc e ignora o romario.sfc (que já é o padrão)
                     const roms = files
                         .filter(f => f.type === 'file' && f.name.endsWith('.sfc') && f.name !== 'romario.sfc')
                         .map(f => f.name);
