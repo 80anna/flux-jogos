@@ -1,81 +1,91 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Mundo do Romário</title>
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Flux Jogos">
-    <meta property="og:description" content="Super Mundo do Romário">
-    <meta property="og:footer" content="footer">
+    <title>Super Mundo do Romário - Flux Jogos</title>
     <meta name="theme-color" content="#4285f4">
-    <link type="application/json+oembed" href="assets/embed_lucas.json">
-    <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/pt/0/06/Super-Mario-World.jpg">
     <link rel="icon" type="image/x-icon" href="assets/flux_games.ico">
+    <link type="application/json+oembed" href="assets/embed_lucas.json">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://github.com/80anna/flux-jogos">
+    <meta property="og:locale" content="pt_BR">
+    <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/pt/0/06/Super-Mario-World.jpg">
+    <meta property="og:image:alt" content="Capa clássica do Super Mario World">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="theme-color" content="#e74c3c">
+    <meta property="og:site_name" content="Flux Jogos">
+    <meta property="og:title" content="Super Mundo do Romário - Flux Jogos">
+    <meta property="og:description" content="Jogue Super Mundo do Romário de SNES direto no navegador, além de rom hacks incríveis.">
+    <meta name="twitter:card" content="summary_large_image">
+    <link type="application/json+oembed" href="assets/embed_lucas.json">
     <style>
-        body {
-            background-color: #121212;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
+    body {
+        background-color: #121212;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
 
-        #emulator-container {
-            width: 720px;
-            height: 480px;
-            max-width: 100%;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-            border: 2px solid #333;
-        }
+    #emulator-container {
+        width: 720px;
+        height: 480px;
+        max-width: 100%;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        border: 2px solid #333;
+    }
 
-        .instructions {
-            margin-top: 15px;
-            color: #888;
-            font-size: 14px;
-        }
+    .instructions {
+        margin-top: 15px;
+        color: #888;
+        font-size: 14px;
+    }
 
-        .selector-container {
-            margin-bottom: 20px;
-            background: #222;
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: 2px solid #333;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-        }
+    .selector-container {
+        margin-bottom: 20px;
+        background: #222;
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: 2px solid #333;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+    }
 
-        .selector-container label {
-            margin-right: 10px;
-            font-size: 16px;
-            font-weight: bold;
-        }
+    .selector-container label {
+        margin-right: 10px;
+        font-size: 16px;
+        font-weight: bold;
+    }
 
-        .selector-container select {
-            background-color: #333;
-            color: white;
-            border: 1px solid #555;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            outline: none;
-            transition: border-color 0.2s;
-        }
+    .selector-container select {
+        background-color: #333;
+        color: white;
+        border: 1px solid #555;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+    }
 
-        .selector-container select:focus,
-        .selector-container select:hover {
-            border-color: #e74c3c;
-        }
+    .selector-container select:focus,
+    .selector-container select:hover {
+        border-color: #e74c3c;
+    }
     </style>
 </head>
+
 <body>
     <div class="selector-container" id="selector-container" style="display: none;">
         <label for="rom-select">Selecione o Jogo:</label>
@@ -93,68 +103,67 @@
     </div>
     <!-- Configuração do Emulador -->
     <script>
-        // Lógica do Seletor de ROM
-        const urlParams = new URLSearchParams(window.location.search);
-        const selectedRom = urlParams.get('rom') || 'romario.sfc';
+    // Lógica do Seletor de ROM
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectedRom = urlParams.get('rom') || 'romario.sfc';
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            const select = document.getElementById('rom-select');
-            
-            try {
-                const response = await fetch('https://api.github.com/repos/80anna/flux-jogos/contents/jogos/assets/romario');
-                if (response.ok) {
-                    const files = await response.json();
-                    
-                    const roms = files
-                        .filter(f => f.type === 'file' && f.name.endsWith('.sfc') && f.name !== 'romario.sfc')
-                        .map(f => f.name);
+    document.addEventListener('DOMContentLoaded', async () => {
+        const select = document.getElementById('rom-select');
 
-                    roms.forEach(rom => {
-                        const option = document.createElement('option');
-                        option.value = rom;
-                        option.textContent = rom.replace('.sfc', '').replace(/_/g, ' ');
-                        select.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error("Erro ao carregar ROMs dinamicamente da API do GitHub:", error);
-            }
+        try {
+            const response = await fetch('https://api.github.com/repos/80anna/flux-jogos/contents/jogos/assets/romario');
+            if (response.ok) {
+                const files = await response.json();
 
-            if (select) {
-                // Se a rom atual não estiver nas options, adiciona para evitar que fique em branco
-                if (!Array.from(select.options).some(opt => opt.value === selectedRom)) {
+                const roms = files
+                    .filter(f => f.type === 'file' && f.name.endsWith('.sfc') && f.name !== 'romario.sfc')
+                    .map(f => f.name);
+
+                roms.forEach(rom => {
                     const option = document.createElement('option');
-                    option.value = selectedRom;
-                    option.textContent = selectedRom.replace('.sfc', '').replace(/_/g, ' ');
+                    option.value = rom;
+                    option.textContent = rom.replace('.sfc', '').replace(/_/g, ' ');
                     select.appendChild(option);
-                }
-                select.value = selectedRom;
+                });
             }
-
-            document.getElementById('selector-container').style.display = 'flex';
-        });
-
-        function changeRom() {
-            const select = document.getElementById('rom-select');
-            window.location.href = window.location.pathname + '?rom=' + select.value;
+        } catch (error) {
+            console.error("Erro ao carregar ROMs dinamicamente da API do GitHub:", error);
         }
 
-        // Define onde o jogo vai renderizar
-        EJS_player = '#game';
-        
-        // Define o console como SNES
-        EJS_core = 'snes'; 
-        
-        EJS_gameUrl = 'assets/romario/' + selectedRom; 
+        if (select) {
+            // Se a rom atual não estiver nas options, adiciona para evitar que fique em branco
+            if (!Array.from(select.options).some(opt => opt.value === selectedRom)) {
+                const option = document.createElement('option');
+                option.value = selectedRom;
+                option.textContent = selectedRom.replace('.sfc', '').replace(/_/g, ' ');
+                select.appendChild(option);
+            }
+            select.value = selectedRom;
+        }
 
-        EJS_color = '#e74c3c'; // Cor do botão de play
-        EJS_startOnLoaded = true; // Inicia automaticamente ao carregar a página
-        
-        EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+        document.getElementById('selector-container').style.display = 'flex';
+    });
+
+    function changeRom() {
+        const select = document.getElementById('rom-select');
+        window.location.href = window.location.pathname + '?rom=' + select.value;
+    }
+
+    // Define onde o jogo vai renderizar
+    EJS_player = '#game';
+
+    // Define o console como SNES
+    EJS_core = 'snes';
+
+    EJS_gameUrl = 'assets/romario/' + selectedRom;
+
+    EJS_color = '#e74c3c'; // Cor do botão de play
+    EJS_startOnLoaded = true; // Inicia automaticamente ao carregar a página
+
+    EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     </script>
-
     <!-- Script principal que carrega o motor -->
     <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
-
 </body>
+
 </html>
