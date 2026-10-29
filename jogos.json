@@ -136,11 +136,5 @@
         "autor": "Lucas",
         "arquivo": "romario.html",
         "imagem": "jogos/assets/romario.jpg"
-    },
-    {
-        "nome": "GTA",
-        "autor": "David",
-        "arquivo": "gta.html",
-        "imagem": "jogos/assets/gta/gta.jpeg"
     }
 ]
